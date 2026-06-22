@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Stage } from './Stage';
 import { Icon } from './Icon';
 import { Activity } from './Activity';
@@ -59,6 +59,22 @@ export function SurfaceView({
   const ref = useRef<HTMLDivElement>(null);
   // live atom values drive element visibility & hotspot "completed" state at runtime
   const atoms = useStore((s) => s.atoms) ?? {};
+  // active snap guide lines (editor only): fractions 0..1, or null when free
+  const [guides, setGuides] = useState<{ v: number | null; h: number | null }>({ v: null, h: null });
+
+  // Snap a position to edges (0 / 1), centre (0.5) or a 5% grid, returning the
+  // snapped value plus the guide line to draw (null = grid/no guide).
+  const SNAP = 0.02;
+  const snap = (val: number, size: number): { val: number; line: number | null } => {
+    const targets: { at: number; line: number }[] = [
+      { at: 0, line: 0 },
+      { at: 1 - size, line: 1 },
+      { at: 0.5 - size / 2, line: 0.5 },
+    ];
+    for (const c of targets) if (Math.abs(val - c.at) < SNAP) return { val: c.at, line: c.line };
+    const g = Math.round(val / 0.05) * 0.05;
+    return Math.abs(val - g) < SNAP ? { val: g, line: null } : { val, line: null };
+  };
 
   const startDrag = (e: React.PointerEvent, el: SceneElement) => {
     if (!editable || !onMoveElement) return;
@@ -69,11 +85,14 @@ export function SurfaceView({
     const offX = e.clientX - (box.left + el.x * box.width);
     const offY = e.clientY - (box.top + el.y * box.height);
     const move = (ev: PointerEvent) => {
-      const nx = (ev.clientX - offX - box.left) / box.width;
-      const ny = (ev.clientY - offY - box.top) / box.height;
-      onMoveElement(el.id, Math.max(0, Math.min(1 - el.w, nx)), Math.max(0, Math.min(1 - el.h, ny)));
+      const rawX = Math.max(0, Math.min(1 - el.w, (ev.clientX - offX - box.left) / box.width));
+      const rawY = Math.max(0, Math.min(1 - el.h, (ev.clientY - offY - box.top) / box.height));
+      const sx = snap(rawX, el.w), sy = snap(rawY, el.h);
+      onMoveElement(el.id, sx.val, sy.val);
+      setGuides({ v: sx.line, h: sy.line });
     };
     const up = () => {
+      setGuides({ v: null, h: null });
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
@@ -160,6 +179,14 @@ export function SurfaceView({
           </div>
         );
       })}
+
+      {/* snap guides (editor) */}
+      {editable && guides.v !== null && (
+        <div className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-primary/80" style={{ left: `${guides.v * 100}%` }} />
+      )}
+      {editable && guides.h !== null && (
+        <div className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-primary/80" style={{ top: `${guides.h * 100}%` }} />
+      )}
 
       {/* scene-change transition overlay (replayed via key on scene change) */}
       {transition && transition.type !== 'none' && (
