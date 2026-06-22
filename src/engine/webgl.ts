@@ -4,7 +4,6 @@
 // drive multiple 4K projector outputs at once.
 
 export interface SceneUniforms {
-  time: number;
   intensity: number; // 0..1  overall brightness / energy
   speed: number; // 0..2  animation rate multiplier
   hue: number; // 0..1  colour rotation
@@ -139,7 +138,7 @@ export class ShaderRenderer {
     const gl = this.gl;
     this.resize();
     const u = this.getUniforms();
-    const t = ((performance.now() - this.start) / 1000) * u.speed + u.time;
+    const t = ((performance.now() - this.start) / 1000) * u.speed;
     gl.uniform2f(this.loc.u_resolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.uniform1f(this.loc.u_time, t);
     gl.uniform1f(this.loc.u_intensity, u.intensity);

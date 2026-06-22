@@ -8,7 +8,7 @@ import { Sync } from './lib/sync';
 
 // The control app links to same-origin surfaces (the projection window) and,
 // when available, to the LAN relay so phone remotes can drive the room.
-attachSync(new Sync({ useWebSocket: true }));
+attachSync(new Sync({ role: 'control', useWebSocket: true }));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -4,14 +4,7 @@ import { Slider } from '@/components/ui';
 import { SCENES } from '@/engine/scenes';
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn } from '@/lib/cn';
-import type { LightingPreset } from '@/lib/types';
-
-const LIGHTS: { id: LightingPreset; icon: string; label: string }[] = [
-  { id: 'ambient', icon: 'lightbulb', label: 'Ambient' },
-  { id: 'blackout', icon: 'dark_mode', label: 'Black' },
-  { id: 'daylight', icon: 'wb_sunny', label: 'Daylight' },
-  { id: 'accent', icon: 'palette', label: 'Accent' },
-];
+import { LIGHTING_PRESETS } from '@/lib/presets';
 
 function haptic() {
   if ('vibrate' in navigator) navigator.vibrate(8);
@@ -134,7 +127,7 @@ export function Remote() {
       <section>
         <p className="mb-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Lighting</p>
         <div className="grid grid-cols-4 gap-base">
-          {LIGHTS.map((l) => (
+          {LIGHTING_PRESETS.map((l) => (
             <button
               key={l.id}
               onClick={() => {
@@ -147,7 +140,7 @@ export function Remote() {
               )}
             >
               <Icon name={l.icon} />
-              <span className="text-[11px]">{l.label}</span>
+              <span className="text-[11px]">{l.title}</span>
             </button>
           ))}
         </div>

@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import type { Experience, RoomPatch, RoomState, SceneParams } from '@/lib/types';
-import { getScene } from '@/engine/scenes';
 import {
   BUILTIN_EXPERIENCES,
   loadUserExperiences,
   saveUserExperiences,
 } from '@/data/experiences';
-import { CLIENT_ID, Sync } from '@/lib/sync';
+import { CLIENT_ID, Sync, nextMessageId } from '@/lib/sync';
 
 interface AppState extends RoomState {
   experiences: Experience[];
@@ -37,12 +36,14 @@ export function attachSync(s: Sync) {
     if (msg.kind === 'patch' && msg.patch) {
       useStore.getState().patch(msg.patch, false);
     } else if (msg.kind === 'hello') {
-      // a new surface connected — push it the full state
+      // a new surface connected — push it the full state so it catches up
       const st = useStore.getState();
-      s.send({ kind: 'state', origin: CLIENT_ID, state: snapshot(st) });
-      useStore.setState((p) => ({ remotesConnected: p.remotesConnected + 1 }));
+      s.send({ kind: 'state', id: nextMessageId(), origin: CLIENT_ID, state: snapshot(st) });
     } else if (msg.kind === 'state' && msg.state) {
       useStore.getState().patch(msg.state, false);
+    } else if (msg.kind === 'presence' && typeof msg.remotes === 'number') {
+      // the relay is the source of truth for how many phones are connected
+      useStore.setState({ remotesConnected: msg.remotes });
     }
   });
 }
@@ -89,7 +90,7 @@ export const useStore = create<AppState>((set, get) => ({
   patch: (p, broadcast = true) => {
     set({ ...p, updatedAt: Date.now() });
     if (broadcast && sync) {
-      sync.send({ kind: 'patch', origin: CLIENT_ID, patch: p });
+      sync.send({ kind: 'patch', id: nextMessageId(), origin: CLIENT_ID, patch: p });
     }
   },
 
@@ -139,8 +140,4 @@ export const useStore = create<AppState>((set, get) => ({
 
 export function currentExperience(s: AppState): Experience {
   return s.experiences.find((e) => e.id === s.currentId) ?? BUILTIN_EXPERIENCES[0];
-}
-
-export function currentScene(s: AppState) {
-  return getScene(currentExperience(s).sceneId);
 }

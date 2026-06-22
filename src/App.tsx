@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
@@ -45,6 +45,16 @@ function AppLayout() {
   );
 }
 
+/**
+ * Keys the Creator on the route id so switching between two experiences (or
+ * from "new" to an existing one) fully resets the editor's local draft state
+ * instead of keeping the previously loaded experience's content.
+ */
+function CreatorRoute() {
+  const { id } = useParams();
+  return <Creator key={id ?? 'new'} />;
+}
+
 export function App() {
   return (
     <Routes>
@@ -55,8 +65,8 @@ export function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="library" element={<Library />} />
         <Route path="experience/:id" element={<TheaterControl />} />
-        <Route path="creator" element={<Creator />} />
-        <Route path="creator/:id" element={<Creator />} />
+        <Route path="creator" element={<CreatorRoute />} />
+        <Route path="creator/:id" element={<CreatorRoute />} />
         <Route path="remote" element={<RemoteSync />} />
         <Route path="settings" element={<Settings />} />
       </Route>

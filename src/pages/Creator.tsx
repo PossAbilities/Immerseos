@@ -3,16 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { Stage } from '@/components/Stage';
 import { GlassPanel, PrimaryButton, SectionLabel, Slider } from '@/components/ui';
+import { SceneParamSliders } from '@/components/SceneParamSliders';
 import { SCENES, getScene } from '@/engine/scenes';
 import { useStore } from '@/store/useStore';
 import { cn, formatTime } from '@/lib/cn';
 import type { Experience, Layer, SceneParams } from '@/lib/types';
 
-const MEDIA_ASSETS = [
-  { name: 'Nebula_Core_01.mp4', meta: '4K · 240fps', icon: 'movie' },
-  { name: 'Fluid_Dynamics_B.mov', meta: '4K · 60fps', icon: 'movie' },
-  { name: 'Ambience_Loop_Sub.wav', meta: 'Audio · 8:00', icon: 'graphic_eq' },
-  { name: 'Forest_Birdsong.wav', meta: 'Audio · 12:00', icon: 'graphic_eq' },
+const MEDIA_ASSETS: { name: string; meta: string; icon: string; kind: 'video' | 'audio' }[] = [
+  { name: 'Nebula_Core_01.mp4', meta: '4K · 240fps', icon: 'movie', kind: 'video' },
+  { name: 'Fluid_Dynamics_B.mov', meta: '4K · 60fps', icon: 'movie', kind: 'video' },
+  { name: 'Ambience_Loop_Sub.wav', meta: 'Audio · 8:00', icon: 'graphic_eq', kind: 'audio' },
+  { name: 'Forest_Birdsong.wav', meta: 'Audio · 12:00', icon: 'graphic_eq', kind: 'audio' },
 ];
 
 const TRIGGERS = [
@@ -20,6 +21,20 @@ const TRIGGERS = [
   { name: 'Light Flash', icon: 'flash_on' },
   { name: 'Audio Cue', icon: 'campaign' },
 ];
+
+const LAYER_ICON: Record<Layer['type'], string> = {
+  scene: 'auto_awesome',
+  video: 'movie',
+  audio: 'graphic_eq',
+  trigger: 'bolt',
+};
+
+const LAYER_COLOR: Record<Layer['type'], string> = {
+  scene: 'bg-primary-container/70',
+  video: 'bg-primary-container/40',
+  audio: 'bg-secondary-container/30',
+  trigger: 'bg-tertiary-container/60',
+};
 
 let layerSeq = 0;
 const uid = () => `layer-${Date.now()}-${layerSeq++}`;
@@ -157,7 +172,7 @@ export function Creator() {
             {MEDIA_ASSETS.map((a) => (
               <button
                 key={a.name}
-                onClick={() => addLayer(a.icon === 'graphic_eq' ? 'audio' : 'scene', a.name, a.name)}
+                onClick={() => addLayer(a.kind, a.name, a.name)}
                 className="glass flex w-full items-center gap-sm rounded-lg p-sm text-left transition-colors hover:bg-white/10"
               >
                 <Icon name={a.icon} className="text-primary" size={20} />
@@ -213,20 +228,13 @@ export function Creator() {
               {allLayers.map((l) => (
                 <div key={l.id} className="flex items-center gap-sm">
                   <span className="w-6 shrink-0 text-center text-on-surface-variant">
-                    <Icon
-                      name={l.type === 'scene' ? 'auto_awesome' : l.type === 'audio' ? 'graphic_eq' : 'bolt'}
-                      size={18}
-                    />
+                    <Icon name={LAYER_ICON[l.type]} size={18} />
                   </span>
                   <div className="relative h-8 flex-1 overflow-hidden rounded bg-surface-container-low">
                     <div
                       className={cn(
                         'absolute top-0 flex h-full items-center gap-xs rounded px-sm text-[11px] text-white',
-                        l.type === 'scene'
-                          ? 'bg-primary-container/70'
-                          : l.type === 'audio'
-                            ? 'bg-secondary-container/30'
-                            : 'bg-tertiary-container/60',
+                        LAYER_COLOR[l.type],
                       )}
                       style={{
                         left: `${(l.start / duration) * 100}%`,
@@ -236,10 +244,11 @@ export function Creator() {
                       <span className="truncate">{l.label}</span>
                     </div>
                   </div>
-                  {l.type !== 'scene' && (
+                  {l.id !== 'base' && (
                     <button
                       onClick={() => removeLayer(l.id)}
                       className="text-outline transition-colors hover:text-error"
+                      title={`Remove ${l.label}`}
                     >
                       <Icon name="close" size={18} />
                     </button>
@@ -286,32 +295,15 @@ export function Creator() {
 
           <div className="border-t border-white/5 pt-md">
             <SectionLabel>Scene Parameters</SectionLabel>
-            <div className="mt-sm space-y-md">
-              {(
-                [
-                  { key: 'intensity', label: 'Intensity', max: 1 },
-                  { key: 'speed', label: 'Motion Speed', max: 2 },
-                  { key: 'hue', label: 'Colour Shift', max: 1 },
-                  { key: 'scale', label: 'Scale', max: 2 },
-                ] as const
-              ).map((c) => (
-                <div key={c.key}>
-                  <div className="mb-xs flex items-center justify-between text-label-sm">
-                    <span className="text-on-surface-variant">{c.label}</span>
-                    <span>{Math.round(params[c.key] * (c.key === 'hue' ? 360 : 100))}{c.key === 'hue' ? '°' : '%'}</span>
-                  </div>
-                  <Slider
-                    value={params[c.key]}
-                    min={0}
-                    max={c.max}
-                    step={0.01}
-                    onChange={(v) => {
-                      setParams((p) => ({ ...p, [c.key]: v }));
-                      setSaved(false);
-                    }}
-                  />
-                </div>
-              ))}
+            <div className="mt-sm">
+              <SceneParamSliders
+                params={params}
+                columns={1}
+                onChange={(key, v) => {
+                  setParams((p) => ({ ...p, [key]: v }));
+                  setSaved(false);
+                }}
+              />
             </div>
           </div>
         </GlassPanel>

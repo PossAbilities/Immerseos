@@ -7,7 +7,7 @@ import { Sync } from '../lib/sync';
 
 // The phone remote reaches the room over the LAN relay (WebSocket). On the same
 // machine BroadcastChannel also links it for local testing.
-attachSync(new Sync({ useWebSocket: true }));
+attachSync(new Sync({ role: 'remote', useWebSocket: true }));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

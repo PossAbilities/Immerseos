@@ -4,16 +4,10 @@ import { Icon } from '@/components/Icon';
 import { Stage } from '@/components/Stage';
 import { QRCode, useRemoteUrl } from '@/components/QRCode';
 import { GlassPanel, IconButton, SectionLabel, Slider, StatusPill } from '@/components/ui';
+import { SceneParamSliders } from '@/components/SceneParamSliders';
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn, formatTime } from '@/lib/cn';
-import type { LightingPreset } from '@/lib/types';
-
-const LIGHT_PRESETS: { id: LightingPreset; icon: string; title: string; sub: string }[] = [
-  { id: 'ambient', icon: 'lightbulb', title: 'Ambient Glow', sub: 'Sync with content' },
-  { id: 'blackout', icon: 'dark_mode', title: 'Theater Black', sub: 'Total blackout' },
-  { id: 'daylight', icon: 'wb_sunny', title: 'Daylight', sub: 'Full house lights' },
-  { id: 'accent', icon: 'palette', title: 'Accent Wash', sub: 'Tinted edges' },
-];
+import { LIGHTING_PRESETS } from '@/lib/presets';
 
 const HARDWARE = [
   { name: 'Projector A-01', status: 'Online', tone: 'ok' },
@@ -35,6 +29,7 @@ export function TheaterControl() {
   const params = useStore((s) => s.params);
   const remotes = useStore((s) => s.remotesConnected);
 
+  const experiences = useStore((s) => s.experiences);
   const loadExperience = useStore((s) => s.loadExperience);
   const togglePlay = useStore((s) => s.togglePlay);
   const goLive = useStore((s) => s.goLive);
@@ -43,10 +38,17 @@ export function TheaterControl() {
 
   const remoteUrl = useRemoteUrl();
 
-  // ensure the routed experience is the active one
+  // ensure the routed experience is the active one; if the id is unknown
+  // (e.g. a user experience created on another machine), return to the library
+  // rather than silently showing an unrelated scene.
   useEffect(() => {
-    if (id && id !== exp.id) loadExperience(id);
-  }, [id, exp.id, loadExperience]);
+    if (!id) return;
+    if (!experiences.some((e) => e.id === id)) {
+      navigate('/app/library', { replace: true });
+    } else if (id !== exp.id) {
+      loadExperience(id);
+    }
+  }, [id, exp.id, experiences, loadExperience, navigate]);
 
   const progress = Math.min(100, (position / exp.durationSec) * 100);
 
@@ -148,34 +150,8 @@ export function TheaterControl() {
           {/* live scene tuning */}
           <GlassPanel className="p-md">
             <SectionLabel>Live Scene Tuning</SectionLabel>
-            <div className="mt-md grid grid-cols-2 gap-md">
-              {(
-                [
-                  { key: 'intensity', label: 'Intensity', icon: 'brightness_6' },
-                  { key: 'speed', label: 'Motion Speed', icon: 'speed' },
-                  { key: 'hue', label: 'Colour Shift', icon: 'palette' },
-                  { key: 'scale', label: 'Scale', icon: 'zoom_out_map' },
-                ] as const
-              ).map((c) => (
-                <div key={c.key}>
-                  <div className="mb-xs flex items-center justify-between">
-                    <span className="flex items-center gap-xs text-label-sm text-on-surface-variant">
-                      <Icon name={c.icon} size={16} /> {c.label}
-                    </span>
-                    <span className="text-label-sm">
-                      {Math.round(params[c.key] * (c.key === 'hue' ? 360 : 100))}
-                      {c.key === 'hue' ? '°' : '%'}
-                    </span>
-                  </div>
-                  <Slider
-                    value={params[c.key]}
-                    min={0}
-                    max={c.key === 'speed' || c.key === 'scale' ? 2 : 1}
-                    step={0.01}
-                    onChange={(v) => setParam(c.key, v)}
-                  />
-                </div>
-              ))}
+            <div className="mt-md">
+              <SceneParamSliders params={params} onChange={setParam} />
             </div>
           </GlassPanel>
         </div>
@@ -210,7 +186,7 @@ export function TheaterControl() {
           <GlassPanel className="space-y-md p-md">
             <SectionLabel>Environment Lighting</SectionLabel>
             <div className="grid grid-cols-2 gap-base">
-              {LIGHT_PRESETS.map((p) => (
+              {LIGHTING_PRESETS.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => patch({ lighting: p.id })}

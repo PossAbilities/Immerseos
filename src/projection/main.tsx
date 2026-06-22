@@ -7,7 +7,7 @@ import { Sync } from '../lib/sync';
 
 // The projection window mirrors the room — keep it in sync with the control
 // surface (same machine) and any device on the relay.
-attachSync(new Sync({ useWebSocket: true }));
+attachSync(new Sync({ role: 'projection', useWebSocket: true }));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

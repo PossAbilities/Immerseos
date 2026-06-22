@@ -40,16 +40,48 @@ export function startServer(distPath: string) {
   });
 
   // --- realtime relay ---
+  // Each socket's role is learned from its 'hello'. The relay is the single
+  // source of truth for how many phone remotes are connected and broadcasts
+  // that count whenever it changes, so no surface has to guess.
+  const roles = new WeakMap<WebSocket, string>();
+
+  const broadcastPresence = () => {
+    let remotes = 0;
+    for (const client of wss!.clients) {
+      if (roles.get(client) === 'remote') remotes++;
+    }
+    const msg = JSON.stringify({
+      kind: 'presence',
+      id: `relay-${Date.now()}`,
+      origin: 'relay',
+      remotes,
+    });
+    for (const client of wss!.clients) {
+      if (client.readyState === WebSocket.OPEN) client.send(msg);
+    }
+  };
+
   wss = new WebSocketServer({ port: WS_PORT });
   wss.on('connection', (socket) => {
     socket.on('message', (data) => {
-      // broadcast to everyone except the sender
+      const text = data.toString();
+      try {
+        const msg = JSON.parse(text);
+        if (msg.kind === 'hello' && typeof msg.role === 'string') {
+          roles.set(socket, msg.role);
+          broadcastPresence();
+        }
+      } catch {
+        /* non-JSON frame — just relay it */
+      }
+      // relay to everyone except the sender
       for (const client of wss!.clients) {
         if (client !== socket && client.readyState === WebSocket.OPEN) {
-          client.send(data.toString());
+          client.send(text);
         }
       }
     });
+    socket.on('close', broadcastPresence);
   });
   console.log(`[immerseos] relay listening on ws://${getLanIp()}:${WS_PORT}`);
 }
