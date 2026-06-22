@@ -11,8 +11,8 @@ import { ACTIVITIES } from '@/activities/registry';
 import { cn } from '@/lib/cn';
 import { atomLabel, applySets, eventHolds, initialAtoms, resetSceneAtoms, SCENE_TIME, EXPERIENCE_TIME } from '@/lib/atoms';
 import type {
-  AtomCmp, AtomDef, AtomEvent, AtomOp, AtomSet, AtomType, AtomValue,
-  BackgroundType, ElementType, Experience, Scene, SceneElement, SurfaceContent,
+  AtomCmp, AtomCondition, AtomDef, AtomEvent, AtomOp, AtomSet, AtomType, AtomValue,
+  BackgroundType, ElementType, Experience, HotspotStyle, Scene, SceneElement, SurfaceContent, TransitionType,
 } from '@/lib/types';
 
 const ASPECTS = ['16:9', '16:10', '4:3', '1:1', '32:9'];
@@ -156,6 +156,35 @@ export function Editor() {
     dirty();
   };
 
+  // Quiz template: scaffolds a question scene wired to score + answered atoms,
+  // showcasing the atoms engine (scoring), visibility gating and hotspot states.
+  const addQuizScene = () => {
+    let defs = atomDefs;
+    const ensure = (name: string, type: AtomType, scope: 'global' | 'scene') => {
+      const found = defs.find((a) => a.name.toLowerCase() === name.toLowerCase());
+      if (found) return found.id;
+      const a: AtomDef = { ...newAtom(defs), name, type, scope, value: defaultForType(type) };
+      defs = [...defs, a];
+      return a.id;
+    };
+    const scoreId = ensure('score', 'int', 'global');
+    const doneId = ensure('answered', 'bool', 'scene');
+    setAtomDefs(defs); dirty();
+    const centre = walls[Math.floor(walls.length / 2)]?.id ?? walls[0]?.id ?? roomSurfaces[0]?.id ?? 'centre';
+    const q: SceneElement = { ...newElement('text'), text: 'Tap the correct answer', x: 0.08, y: 0.12, w: 0.84, h: 0.16, fontSize: 0.11 };
+    const mk = (label: string, x: number, correct: boolean): SceneElement => ({
+      ...newElement('hotspot'), label, x, y: 0.52, w: 0.24, h: 0.3, hotspotStyle: 'ring', completedAtomId: doneId,
+      setAtoms: [{ atomId: doneId, op: 'set', value: true }, ...(correct ? [{ atomId: scoreId, op: 'add' as AtomOp, value: 1 }] : [])],
+    });
+    const answers = [mk('A', 0.06, true), mk('B', 0.38, false), mk('C', 0.7, false)];
+    const scoreEl: SceneElement = { ...newElement('score'), label: 'Score', bindAtomId: scoreId, x: 0.78, y: 0.04, w: 0.18, h: 0.16 };
+    const result: SceneElement = { ...newElement('text'), text: 'Answer locked ✓', color: '#7dd1a0', x: 0.2, y: 0.86, w: 0.6, h: 0.1, fontSize: 0.07, visibleIf: { atomId: doneId, cmp: '==', value: true } };
+    const sc = newScene(`Quiz ${scenes.length + 1}`, SCENES[0].id);
+    sc.surfaces[centre] = { elements: [q, ...answers, scoreEl, result] };
+    setScenes((l) => [...l, sc]);
+    setSceneIdx(scenes.length); setSurfaceId(centre); setPanel('scenes');
+  };
+
   const build = (): Experience => ({ ...exp, id: targetId, title, category, accent, builtIn: false, owner: exp.owner ?? operator, scenes, atoms: atomDefs, audioTrack, aspectRatio: aspect, wallOrder: walls.map((w) => w.id) });
   const save = () => { addExperience(build()); setSaved(true); };
   const deploy = () => { const e = build(); addExperience(e); loadExperience(e.id); goLive(true); setActiveScene(scenes[0].id); navigate(`/app/experience/${e.id}`); };
@@ -234,6 +263,7 @@ export function Editor() {
                   ))}
                 </div>
                 <input value={scene.name} onChange={(e) => mutate((s) => ({ ...s, name: e.target.value }))} className="mt-sm w-full rounded bg-surface-container-low p-1 text-label-sm outline-none" placeholder="Scene name" />
+                <button onClick={addQuizScene} className="mt-base flex w-full items-center justify-center gap-base rounded-lg bg-primary/15 p-sm text-label-sm text-primary hover:bg-primary/25"><Icon name="quiz" size={16} /> Add quiz scene</button>
               </Section>
             )}
             {panel === 'experience' && (
@@ -267,6 +297,14 @@ export function Editor() {
                     </select>
                   </Labeled>
                 ) : null}
+                <Labeled label="Transition in">
+                  <div className="flex gap-base">
+                    <select value={scene.transition?.type ?? 'none'} onChange={(e) => { const type = e.target.value as TransitionType; mutate((s) => ({ ...s, transition: type === 'none' ? undefined : { type, ms: s.transition?.ms ?? 600 } })); }} className={inputCls}>
+                      {(['none', 'fade', 'dissolve', 'slide', 'wipe'] as TransitionType[]).map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    {scene.transition && <input type="number" min={100} step={100} value={scene.transition.ms ?? 600} onChange={(e) => mutate((s) => ({ ...s, transition: { ...s.transition!, ms: Number(e.target.value) } }))} className="w-20 rounded-lg bg-surface-container-low p-sm text-label-md outline-none" title="ms" />}
+                  </div>
+                </Labeled>
                 <button onClick={() => { setBgPanel(true); setSelId(null); }} className="mt-sm flex w-full items-center gap-base rounded-lg bg-primary/15 p-sm text-label-md text-primary"><Icon name="wallpaper" size={18} /> Edit background…</button>
                 <div className="border-t border-white/5 pt-md">
                   <EventsEditor events={scene.events ?? []} atoms={atomDefs} scenes={scenes} onChange={(events) => mutate((s) => ({ ...s, events }))} />
@@ -415,13 +453,13 @@ function PreviewStage({ scenes, atoms, startSceneId, walls, hasFloor, aspect, au
         <div className="flex" style={{ height: '56vh' }}>
           {walls.map((sid, i) => (
             <div key={sid} className="h-full shrink-0 overflow-hidden" style={{ aspectRatio: ratioCss(aspect) }}>
-              <SurfaceView content={wallContent(scene, sid)} surface={sid} bgOverride={panoramaStyle(scene, i, count)} equirect={equirectView(scene, sid, walls, false) ?? undefined} onHotspot={go} className="h-full w-full" />
+              <SurfaceView content={wallContent(scene, sid)} surface={sid} bgOverride={panoramaStyle(scene, i, count)} equirect={equirectView(scene, sid, walls, false) ?? undefined} transition={scene.transition} transitionKey={scene.id} onHotspot={go} className="h-full w-full" />
             </div>
           ))}
         </div>
         {hasFloor && (
           <div className="overflow-hidden" style={{ width: '56vh', height: '14vh' }}>
-            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" equirect={equirectView(scene, 'floor', walls, true) ?? undefined} onHotspot={go} className="h-full w-full" />
+            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" equirect={equirectView(scene, 'floor', walls, true) ?? undefined} transition={scene.transition} transitionKey={scene.id} onHotspot={go} className="h-full w-full" />
           </div>
         )}
       </div>
@@ -526,7 +564,25 @@ function ElementInspector({ el, scenes, atoms, onChange, onDelete }: { el: Scene
       )}
       {(el.type === 'hotspot' || el.type === 'lock') && (
         <>
-          {el.type === 'hotspot' && <Labeled label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} /></Labeled>}
+          {el.type === 'hotspot' && (
+            <>
+              <Labeled label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} /></Labeled>
+              <Labeled label="Appearance">
+                <select value={el.hotspotStyle ?? 'ring'} onChange={(e) => onChange({ hotspotStyle: e.target.value as HotspotStyle })} className={inputCls}>
+                  <option value="ring">Ring</option>
+                  <option value="pulse">Pulse</option>
+                  <option value="dot">Dot</option>
+                  <option value="invisible">Invisible (find it)</option>
+                </select>
+              </Labeled>
+              <Labeled label="Show ‘done’ when variable set">
+                <select value={el.completedAtomId ?? ''} onChange={(e) => onChange({ completedAtomId: e.target.value || undefined })} className={inputCls}>
+                  <option value="">(never)</option>
+                  {atoms.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </Labeled>
+            </>
+          )}
           {el.type === 'lock' && <>
             <Labeled label="Lock type"><select value={el.lockKind ?? 'numberpad'} onChange={(e) => onChange({ lockKind: e.target.value as SceneElement['lockKind'] })} className={inputCls}><option value="numberpad">Numberpad</option><option value="sliding">Sliding</option><option value="descramble">Descramble</option></select></Labeled>
             <Labeled label="Unlock code"><input value={el.code ?? ''} onChange={(e) => onChange({ code: e.target.value })} className={inputCls} /></Labeled>
@@ -546,10 +602,34 @@ function ElementInspector({ el, scenes, atoms, onChange, onDelete }: { el: Scene
       {el.type !== 'web' && el.type !== 'image' && el.type !== 'video' && (
         <Labeled label="Colour"><input type="color" value={el.color ?? '#adc6ff'} onChange={(e) => onChange({ color: e.target.value })} className="h-9 w-full rounded bg-surface-container-low" /></Labeled>
       )}
+      <div className="border-t border-white/5 pt-md">
+        <span className="text-label-sm text-on-surface-variant">Visible only when…</span>
+        <div className="mt-xs"><VisibilityEditor cond={el.visibleIf} atoms={atoms} onChange={(visibleIf) => onChange({ visibleIf })} /></div>
+      </div>
       <div className="grid grid-cols-2 gap-base border-t border-white/5 pt-md">
         <Labeled label={`Width ${Math.round(el.w * 100)}%`}><Slider value={el.w} min={0.05} max={1} step={0.01} onChange={(v) => onChange({ w: v })} /></Labeled>
         <Labeled label={`Height ${Math.round(el.h * 100)}%`}><Slider value={el.h} min={0.05} max={1} step={0.01} onChange={(v) => onChange({ h: v })} /></Labeled>
       </div>
+    </div>
+  );
+}
+
+/** Edit an optional `visibleIf` atom condition for an element. */
+function VisibilityEditor({ cond, atoms, onChange }: { cond?: AtomCondition; atoms: AtomDef[]; onChange: (c: AtomCondition | undefined) => void }) {
+  if (!atoms.length) return <p className="text-label-sm text-outline">Create an atom to gate visibility.</p>;
+  if (!cond) return <button onClick={() => onChange({ atomId: atoms[0].id, cmp: '==', value: defaultForType(atoms[0].type) })} className="text-label-sm text-primary hover:underline">+ add a condition</button>;
+  return (
+    <div className="space-y-1 rounded-lg border border-white/10 p-1">
+      <div className="flex items-center gap-1">
+        <select value={cond.atomId} onChange={(e) => onChange({ ...cond, atomId: e.target.value })} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none">
+          {atoms.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <select value={cond.cmp} onChange={(e) => onChange({ ...cond, cmp: e.target.value as AtomCmp })} className="rounded bg-surface-container-low p-1 text-label-sm outline-none">
+          {CMPS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={() => onChange(undefined)} className="text-outline hover:text-error"><Icon name="close" size={14} /></button>
+      </div>
+      <AtomValueInput type={atomType(atoms, cond.atomId)} value={cond.value} onChange={(v) => onChange({ ...cond, value: v })} />
     </div>
   );
 }

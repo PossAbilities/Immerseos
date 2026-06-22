@@ -58,6 +58,8 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
       surface={surface}
       bgOverride={bgOverride}
       equirect={equirect}
+      transition={scene.transition}
+      transitionKey={scene.id}
       className="h-full w-full"
       onHotspot={onHotspot}
     />

@@ -61,6 +61,12 @@ export interface AtomSet {
 }
 
 export type AtomCmp = '==' | '!=' | '>' | '<' | '>=' | '<=';
+/** A single `atomId cmp value` test, reused by events and element visibility. */
+export interface AtomCondition {
+  atomId: string;
+  cmp: AtomCmp;
+  value: AtomValue;
+}
 /** When `atomId cmp value` holds, run the action (navigate or set atoms). */
 export interface AtomEvent {
   id: string;
@@ -107,6 +113,20 @@ export interface SceneElement {
   // hotspot / lock behaviour: navigate to another scene in the same experience
   targetSceneId?: string;
   label?: string;
+  // --- atom-driven appearance ---
+  visibleIf?: AtomCondition; // only render (at runtime) when this condition holds
+  hotspotStyle?: HotspotStyle; // hotspot appearance
+  completedAtomId?: string; // hotspot: show the "found/done" look when truthy
+}
+
+/** Visual treatment for a hotspot at runtime. */
+export type HotspotStyle = 'ring' | 'pulse' | 'dot' | 'invisible';
+
+/** How a scene animates in when it becomes active. */
+export type TransitionType = 'none' | 'fade' | 'dissolve' | 'slide' | 'wipe';
+export interface SceneTransition {
+  type: TransitionType;
+  ms?: number; // duration, default 600
 }
 
 /** What fills a surface behind the elements. */
@@ -129,6 +149,7 @@ export interface Scene {
   panoramaSrc?: string; // wide image/video for panorama / 360 modes
   panoramaColor?: string; // for the 'colour' mode
   events?: AtomEvent[]; // atom-driven logic for this scene
+  transition?: SceneTransition; // how this scene animates in
 }
 
 export type ExperienceVisibility = 'private' | 'team' | 'public';

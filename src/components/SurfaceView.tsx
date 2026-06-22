@@ -6,7 +6,9 @@ import { EquirectSurface } from './EquirectSurface';
 import { LockEl, ProgressEl, ScoreEl, TimerEl, WipeEl } from './SceneAtoms';
 import { getScene } from '@/engine/scenes';
 import { cn } from '@/lib/cn';
-import type { SceneElement, SurfaceContent } from '@/lib/types';
+import { useStore } from '@/store/useStore';
+import { conditionHolds, truthy } from '@/lib/atoms';
+import type { SceneElement, SurfaceContent, TransitionType } from '@/lib/types';
 
 export interface EquirectView {
   src: string;
@@ -30,6 +32,8 @@ interface Props {
   onSelectElement?: (id: string | null) => void;
   onMoveElement?: (id: string, x: number, y: number) => void;
   onHotspot?: (el: SceneElement) => void;
+  transition?: { type: TransitionType; ms?: number }; // animate in on scene change
+  transitionKey?: string; // remount the overlay (replay anim) when this changes
 }
 
 /**
@@ -49,8 +53,12 @@ export function SurfaceView({
   onSelectElement,
   onMoveElement,
   onHotspot,
+  transition,
+  transitionKey,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  // live atom values drive element visibility & hotspot "completed" state at runtime
+  const atoms = useStore((s) => s.atoms) ?? {};
 
   const startDrag = (e: React.PointerEvent, el: SceneElement) => {
     if (!editable || !onMoveElement) return;
@@ -99,11 +107,15 @@ export function SurfaceView({
 
       {/* elements */}
       {content.elements.map((el) => {
+        // runtime visibility gate (authoring always shows the element, dimmed)
+        const gated = !!el.visibleIf && !conditionHolds(atoms, el.visibleIf);
+        if (gated && !editable) return null;
         const style: React.CSSProperties = {
           left: `${el.x * 100}%`,
           top: `${el.y * 100}%`,
           width: `${el.w * 100}%`,
           height: `${el.h * 100}%`,
+          opacity: gated ? 0.4 : undefined,
         };
         const selected = editable && selectedId === el.id;
         return (
@@ -133,16 +145,7 @@ export function SurfaceView({
               </div>
             )}
             {el.type === 'hotspot' && (
-              <button
-                onClick={(e) => { e.stopPropagation(); if (!editable) onHotspot?.(el); }}
-                className="flex h-full w-full items-center justify-center rounded-full border-2 backdrop-blur-sm transition-transform hover:scale-105"
-                style={{ borderColor: el.color, background: `${el.color}22` }}
-              >
-                <span className="flex flex-col items-center gap-1 text-center" style={{ color: el.color }}>
-                  <Icon name="touch_app" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">{el.label}</span>
-                </span>
-              </button>
+              <Hotspot el={el} editable={!!editable} completed={!!el.completedAtomId && truthy(atoms[el.completedAtomId])} onActivate={() => !editable && onHotspot?.(el)} />
             )}
             {el.type === 'activity' && (
               <Activity activityId={el.activityId ?? 'particles'} surface={surface} interactive={!editable} />
@@ -157,7 +160,50 @@ export function SurfaceView({
           </div>
         );
       })}
+
+      {/* scene-change transition overlay (replayed via key on scene change) */}
+      {transition && transition.type !== 'none' && (
+        <div
+          key={transitionKey}
+          className={cn('pointer-events-none absolute inset-0 z-20', `scene-trans-${transition.type}`)}
+          style={{ animationDuration: `${transition.ms ?? 600}ms` }}
+        />
+      )}
     </div>
+  );
+}
+
+/** A hotspot with atom-aware visual states (ring / pulse / dot / invisible + done). */
+function Hotspot({ el, editable, completed, onActivate }: { el: SceneElement; editable: boolean; completed: boolean; onActivate: () => void }) {
+  const color = el.color ?? '#adc6ff';
+  const style = el.hotspotStyle ?? 'ring';
+  const invisible = style === 'invisible' && !completed;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onActivate(); }}
+      className={cn(
+        'flex h-full w-full items-center justify-center rounded-full transition-all',
+        !invisible && 'border-2 backdrop-blur-sm hover:scale-105',
+        style === 'pulse' && !completed && 'animate-pulse-ring',
+        invisible && editable && 'border-2 border-dashed',
+      )}
+      style={{
+        borderColor: invisible ? 'rgba(255,255,255,0.4)' : completed ? '#7dd1a0' : color,
+        background: invisible ? 'transparent' : completed ? 'rgba(125,209,160,0.18)' : `${color}22`,
+      }}
+      title={el.label}
+    >
+      {!invisible && (
+        <span className="flex flex-col items-center gap-1 text-center" style={{ color: completed ? '#7dd1a0' : color }}>
+          {style === 'dot' ? (
+            <span className="h-2/5 w-2/5 rounded-full" style={{ background: completed ? '#7dd1a0' : color }} />
+          ) : (
+            <Icon name={completed ? 'check_circle' : 'touch_app'} />
+          )}
+          {el.label && <span className="text-[10px] font-semibold uppercase tracking-wider">{el.label}</span>}
+        </span>
+      )}
+    </button>
   );
 }
 

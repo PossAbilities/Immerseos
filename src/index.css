@@ -93,3 +93,74 @@
 input[type='range'] {
   accent-color: #adc6ff;
 }
+
+/* ---- Hotspot pulse + scene transitions ---- */
+@keyframes hotspot-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(173, 198, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(173, 198, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(173, 198, 255, 0);
+  }
+}
+.animate-pulse-ring {
+  animation: hotspot-pulse 1.8s ease-out infinite;
+}
+
+/* Scene-change transition overlays. Each replays once when its key changes. */
+@keyframes trans-fade {
+  from {
+    background: #000;
+    opacity: 1;
+  }
+  to {
+    background: #000;
+    opacity: 0;
+  }
+}
+@keyframes trans-dissolve {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(24px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+}
+@keyframes trans-slide {
+  from {
+    transform: translateX(0);
+    background: #000;
+  }
+  to {
+    transform: translateX(105%);
+    background: #000;
+  }
+}
+@keyframes trans-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+    background: #000;
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+    background: #000;
+  }
+}
+.scene-trans-fade {
+  animation: trans-fade ease-out forwards;
+}
+.scene-trans-dissolve {
+  background: rgba(15, 17, 21, 0.9);
+  animation: trans-dissolve ease-out forwards;
+}
+.scene-trans-slide {
+  animation: trans-slide ease-in-out forwards;
+}
+.scene-trans-wipe {
+  animation: trans-wipe ease-in-out forwards;
+}

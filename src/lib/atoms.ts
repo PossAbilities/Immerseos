@@ -2,7 +2,7 @@
 // logic that turn an experience from a slideshow into an interactive app.
 // Used by both the live control-surface engine and the in-editor Play preview.
 
-import type { AtomDef, AtomEvent, AtomSet, AtomValue, AtomCmp } from './types';
+import type { AtomCondition, AtomDef, AtomEvent, AtomSet, AtomValue, AtomCmp } from './types';
 
 // Predefined runtime atoms (always available, not user-defined).
 export const SCENE_TIME = '__sceneTime';
@@ -53,6 +53,16 @@ export function compare(a: AtomValue | undefined, cmp: AtomCmp, b: AtomValue): b
 
 export function eventHolds(map: AtomMap, e: AtomEvent): boolean {
   return compare(map[e.atomId], e.cmp, e.value);
+}
+
+/** Whether a single atom condition (used for element visibility) holds. */
+export function conditionHolds(map: AtomMap, cond: AtomCondition): boolean {
+  return compare(map[cond.atomId], cond.cmp, cond.value);
+}
+
+/** Truthiness of an atom value (used for hotspot "completed" state). */
+export function truthy(v: AtomValue | undefined): boolean {
+  return typeof v === 'boolean' ? v : typeof v === 'string' ? v.length > 0 : Number(v ?? 0) !== 0;
 }
 
 export function atomLabel(id: string): string {
