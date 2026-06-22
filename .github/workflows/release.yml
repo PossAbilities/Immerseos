@@ -1,0 +1,53 @@
+name: Build Windows installer
+
+# Produces a double-click ImmerseOS installer (.exe) for Windows.
+#
+# Two ways to get it:
+#  1. Manual: GitHub → Actions tab → "Build Windows installer" → "Run workflow".
+#     When it finishes, download the installer from the run's "Artifacts".
+#  2. Release: push a tag like v1.0.0 and the installer is attached to a
+#     GitHub Release on the Releases page (a permanent, shareable download).
+
+on:
+  workflow_dispatch: # the "Run workflow" button (available once on the main branch)
+  push:
+    tags: ['v*']
+    # Temporary: also build on this feature branch so an installer can be
+    # produced before the PR is merged. Remove once merged to main.
+    branches: ['claude/immersive-room-system-2peozg']
+
+permissions:
+  contents: write # needed to attach the installer to a Release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImmerseOS-Windows-Installer
+          path: release/*.exe
+          if-no-files-found: error
+
+      - name: Attach installer to Release (tagged builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
