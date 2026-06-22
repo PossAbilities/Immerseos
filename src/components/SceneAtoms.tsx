@@ -57,7 +57,11 @@ export function ProgressEl({ el }: { el: SceneElement }) {
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [total, el.bindAtomId]);
-  const pct = el.bindAtomId ? Math.max(0, Math.min(100, Number(bound ?? 0) * 100)) : auto;
+  // bound mode fills as the atom climbs toward its target value (el.duration is
+  // reused as that max), so a score of 7/10 reads as 70%. Set the target to 1
+  // when binding a 0..1 fraction atom.
+  const max = el.duration && el.duration > 0 ? el.duration : 1;
+  const pct = el.bindAtomId ? Math.max(0, Math.min(100, (Number(bound ?? 0) / max) * 100)) : auto;
   return (
     <div className="flex h-full w-full items-center overflow-hidden rounded-full bg-black/50 p-[10%]">
       <div className="h-full w-full overflow-hidden rounded-full bg-white/10">

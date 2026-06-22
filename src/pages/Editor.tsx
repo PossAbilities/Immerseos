@@ -9,7 +9,7 @@ import { EDITOR_SURFACES, equirectView, getScenes, newElement, newScene, panoram
 import { SCENES } from '@/engine/scenes';
 import { ACTIVITIES } from '@/activities/registry';
 import { cn } from '@/lib/cn';
-import { atomLabel, applySets, eventHolds, initialAtoms, resetSceneAtoms, SCENE_TIME, EXPERIENCE_TIME } from '@/lib/atoms';
+import { atomLabel, applySets, initialAtoms, resetSceneAtoms, runSceneEvents, SCENE_TIME, EXPERIENCE_TIME } from '@/lib/atoms';
 import type {
   AtomCmp, AtomCondition, AtomDef, AtomEvent, AtomOp, AtomSet, AtomType, AtomValue,
   BackgroundType, ElementType, Experience, HotspotStyle, Scene, SceneElement, SurfaceContent, TransitionType,
@@ -400,8 +400,14 @@ function PreviewStage({ scenes, atoms, startSceneId, walls, hasFloor, aspect, au
 
   // Seed atom values into the store so bound Score/Progress elements (which read
   // the shared live atoms) reflect the playtest. setState (not patch) keeps it
-  // local — preview never broadcasts to the projection/remote surfaces.
-  useEffect(() => { useStore.setState({ atoms: initialAtoms(atoms) }); }, [atoms]);
+  // local — preview never broadcasts to the projection/remote surfaces. The
+  // prior atoms are captured and restored on close so a playtest never leaves
+  // the live room's atom state mutated.
+  useEffect(() => {
+    const prev = useStore.getState().atoms;
+    useStore.setState({ atoms: initialAtoms(atoms) });
+    return () => useStore.setState({ atoms: prev });
+  }, [atoms]);
 
   const goScene = (sid: string) => {
     if (!scenes.some((s) => s.id === sid)) return;
@@ -427,14 +433,10 @@ function PreviewStage({ scenes, atoms, startSceneId, walls, hasFloor, aspect, au
         [SCENE_TIME]: (now - sceneStart.current) / 1000,
         [EXPERIENCE_TIME]: (now - expStart.current) / 1000,
       };
-      for (const e of sc.events!) {
-        const onlyOnce = e.once !== false;
-        if (onlyOnce && fired.current.has(e.id)) continue;
-        if (!eventHolds(working, e)) continue;
-        fired.current.add(e.id);
-        if (e.action === 'scene' && e.targetSceneId) goScene(e.targetSceneId);
-        else if (e.action === 'set') useStore.setState((st) => ({ atoms: applySets(st.atoms ?? {}, e.sets) }));
-      }
+      runSceneEvents(working, sc.events, fired.current, {
+        onScene: goScene,
+        onSet: (sets) => useStore.setState((st) => ({ atoms: applySets(st.atoms ?? {}, sets) })),
+      });
     }, 200);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -552,7 +554,8 @@ function ElementInspector({ el, scenes, atoms, onChange, onDelete }: { el: Scene
       {el.type === 'activity' && (
         <Labeled label="Activity"><select value={el.activityId ?? 'particles'} onChange={(e) => onChange({ activityId: e.target.value })} className={inputCls}>{ACTIVITIES.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.category}</option>)}</select></Labeled>
       )}
-      {(el.type === 'timer' || el.type === 'progress') && <Labeled label="Duration (seconds)"><input type="number" min={1} value={el.duration ?? 30} onChange={(e) => onChange({ duration: Number(e.target.value) })} className={inputCls} /></Labeled>}
+      {el.type === 'timer' && <Labeled label="Duration (seconds)"><input type="number" min={1} value={el.duration ?? 60} onChange={(e) => onChange({ duration: Number(e.target.value) })} className={inputCls} /></Labeled>}
+      {el.type === 'progress' && <Labeled label={el.bindAtomId ? 'Full when value reaches' : 'Duration (seconds)'}><input type="number" min={1} value={el.duration ?? 30} onChange={(e) => onChange({ duration: Number(e.target.value) })} className={inputCls} /></Labeled>}
       {el.type === 'score' && <Labeled label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} /></Labeled>}
       {(el.type === 'score' || el.type === 'progress') && (
         <Labeled label="Bind to variable">

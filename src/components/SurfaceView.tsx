@@ -73,7 +73,8 @@ export function SurfaceView({
     ];
     for (const c of targets) if (Math.abs(val - c.at) < SNAP) return { val: c.at, line: c.line };
     const g = Math.round(val / 0.05) * 0.05;
-    return Math.abs(val - g) < SNAP ? { val: g, line: null } : { val, line: null };
+    // grid rounding can overshoot the edge — keep the element fully on-surface
+    return Math.abs(val - g) < SNAP ? { val: Math.max(0, Math.min(1 - size, g)), line: null } : { val, line: null };
   };
 
   const startDrag = (e: React.PointerEvent, el: SceneElement) => {

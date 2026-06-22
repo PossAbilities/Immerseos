@@ -55,6 +55,33 @@ export function eventHolds(map: AtomMap, e: AtomEvent): boolean {
   return compare(map[e.atomId], e.cmp, e.value);
 }
 
+/**
+ * Evaluate a scene's events against a working atom map, invoking the handlers
+ * for any that newly hold. Shared by the live control engine (App.tsx) and the
+ * in-editor Play preview so their semantics can never drift apart. A scene
+ * navigation stops processing the rest of this tick — once we leave the scene,
+ * its remaining events must not fire against the next scene's state.
+ */
+export function runSceneEvents(
+  working: AtomMap,
+  events: AtomEvent[] | undefined,
+  fired: Set<string>,
+  handlers: { onScene: (sceneId: string) => void; onSet: (sets: AtomSet[] | undefined) => void },
+): void {
+  if (!events?.length) return;
+  for (const e of events) {
+    const onlyOnce = e.once !== false; // default: fire once per scene entry
+    if (onlyOnce && fired.has(e.id)) continue;
+    if (!eventHolds(working, e)) continue;
+    fired.add(e.id);
+    if (e.action === 'scene' && e.targetSceneId) {
+      handlers.onScene(e.targetSceneId);
+      break;
+    }
+    if (e.action === 'set') handlers.onSet(e.sets);
+  }
+}
+
 /** Whether a single atom condition (used for element visibility) holds. */
 export function conditionHolds(map: AtomMap, cond: AtomCondition): boolean {
   return compare(map[cond.atomId], cond.cmp, cond.value);

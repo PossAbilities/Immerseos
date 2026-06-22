@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useStore, currentExperience } from './store/useStore';
-import { eventHolds, SCENE_TIME, EXPERIENCE_TIME } from './lib/atoms';
+import { runSceneEvents, SCENE_TIME, EXPERIENCE_TIME } from './lib/atoms';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
 import { Splash } from './components/Splash';
@@ -72,14 +72,7 @@ function AppLayout() {
         [SCENE_TIME]: (now - sceneStart.current) / 1000,
         [EXPERIENCE_TIME]: (now - expStart.current) / 1000,
       };
-      for (const e of scene.events) {
-        const onlyOnce = e.once !== false;
-        if (onlyOnce && fired.current.has(e.id)) continue;
-        if (!eventHolds(working, e)) continue;
-        fired.current.add(e.id);
-        if (e.action === 'scene' && e.targetSceneId) setActiveScene(e.targetSceneId);
-        else if (e.action === 'set') applyAtomSets(e.sets);
-      }
+      runSceneEvents(working, scene.events, fired.current, { onScene: setActiveScene, onSet: applyAtomSets });
     }, 200);
     return () => clearInterval(t);
   }, [live, activeSceneId, exp, setActiveScene, applyAtomSets]);

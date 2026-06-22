@@ -45,7 +45,7 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
     return onSurfaceTouch((t) => {
       if (t.surface !== surface || t.phase !== 'down') return;
       const hit = content.elements.find(
-        (el) => el.type === 'hotspot' && (el.targetSceneId || el.setAtoms) && t.x >= el.x && t.x <= el.x + el.w && t.y >= el.y && t.y <= el.y + el.h,
+        (el) => el.type === 'hotspot' && (el.targetSceneId || el.setAtoms?.length) && t.x >= el.x && t.x <= el.x + el.w && t.y >= el.y && t.y <= el.y + el.h,
       );
       if (hit) onHotspot(hit);
     });
