@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useStore, currentExperience } from './store/useStore';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
+import { Splash } from './components/Splash';
 import { Welcome } from './pages/Welcome';
 import { SignIn } from './pages/SignIn';
 import { Dashboard } from './pages/Dashboard';
@@ -91,23 +92,27 @@ function EditorRoute() {
 }
 
 export function App() {
+  const [booting, setBooting] = useState(true);
   return (
-    <Routes>
-      <Route path="/" element={<Welcome />} />
-      <Route path="/signin" element={<SignIn />} />
-      <Route path="/app" element={<AppLayout />}>
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="library" element={<Library />} />
-        <Route path="experience/:id" element={<TheaterControl />} />
-        <Route path="creator" element={<CreatorRoute />} />
-        <Route path="creator/:id" element={<CreatorRoute />} />
-        <Route path="editor/:id" element={<EditorRoute />} />
-        <Route path="remote" element={<RemoteSync />} />
-        <Route path="setup" element={<SetupRoute />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      {booting && <Splash onDone={() => setBooting(false)} />}
+      <Routes>
+        <Route path="/" element={<Welcome />} />
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="/app" element={<AppLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="library" element={<Library />} />
+          <Route path="experience/:id" element={<TheaterControl />} />
+          <Route path="creator" element={<CreatorRoute />} />
+          <Route path="creator/:id" element={<CreatorRoute />} />
+          <Route path="editor/:id" element={<EditorRoute />} />
+          <Route path="remote" element={<RemoteSync />} />
+          <Route path="setup" element={<SetupRoute />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
