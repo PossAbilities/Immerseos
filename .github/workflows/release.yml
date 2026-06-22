@@ -9,9 +9,12 @@ name: Build Windows installer
 #     GitHub Release on the Releases page (a permanent, shareable download).
 
 on:
-  workflow_dispatch: # the "Run workflow" button
+  workflow_dispatch: # the "Run workflow" button (available once on the main branch)
   push:
     tags: ['v*']
+    # Temporary: also build on this feature branch so an installer can be
+    # produced before the PR is merged. Remove once merged to main.
+    branches: ['claude/immersive-room-system-2peozg']
 
 permissions:
   contents: write # needed to attach the installer to a Release
