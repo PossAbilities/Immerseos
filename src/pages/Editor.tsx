@@ -6,6 +6,7 @@ import { GlassPanel, PrimaryButton, SectionLabel, Slider } from '@/components/ui
 import { useStore, currentExperience } from '@/store/useStore';
 import { EDITOR_SURFACES, getScenes, newElement, newScene } from '@/lib/sceneModel';
 import { SCENES } from '@/engine/scenes';
+import { ACTIVITIES } from '@/activities/registry';
 import { cn } from '@/lib/cn';
 import type { ElementType, Experience, Scene, SceneElement, SurfaceContent } from '@/lib/types';
 
@@ -15,6 +16,7 @@ const TOOLS: { type: ElementType; icon: string; label: string }[] = [
   { type: 'hotspot', icon: 'touch_app', label: 'Hotspot' },
   { type: 'video', icon: 'movie', label: 'Video' },
   { type: 'web', icon: 'public', label: 'Web View' },
+  { type: 'activity', icon: 'sports_esports', label: 'Activity' },
 ];
 
 function readFile(accept: string, onDone: (dataUrl: string) => void) {
@@ -156,12 +158,12 @@ export function Editor() {
               <div className="grid flex-1 grid-cols-3 gap-sm">
                 {EDITOR_SURFACES.slice(0, 3).map((s) => (
                   <SurfacePane key={s.id} label={s.label} active={surfaceId === s.id} onPick={() => { setSurfaceId(s.id); setSelId(null); }}>
-                    <SurfaceView content={scene.surfaces[s.id] ?? { elements: [] }} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                    <SurfaceView content={scene.surfaces[s.id] ?? { elements: [] }} surface={s.id} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                   </SurfacePane>
                 ))}
               </div>
               <SurfacePane label="Floor" active={surfaceId === 'floor'} onPick={() => { setSurfaceId('floor'); setSelId(null); }} className="h-32">
-                <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} editable selectedId={surfaceId === 'floor' ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" editable selectedId={surfaceId === 'floor' ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
               </SurfacePane>
             </div>
           ) : (
@@ -201,16 +203,16 @@ function VirtualRoom({ scene, onPick }: { scene: Scene; onPick: (sid: string) =>
     <div className="flex h-full items-center justify-center" style={{ perspective: '1200px' }}>
       <div className="relative h-[70%] w-[70%]" style={{ transformStyle: 'preserve-3d' }}>
         <div className={cn(wall, 'left-0 top-[20%]')} style={{ transform: 'rotateY(38deg) translateZ(-40px)' }} onPointerDown={() => onPick('left')}>
-          <SurfaceView content={scene.surfaces.left ?? { elements: [] }} className="h-full w-full" />
+          <SurfaceView content={scene.surfaces.left ?? { elements: [] }} surface="left" className="h-full w-full" />
         </div>
         <div className="absolute left-[30%] top-[20%] h-[60%] w-[40%] overflow-hidden" onPointerDown={() => onPick('centre')}>
-          <SurfaceView content={scene.surfaces.centre ?? { elements: [] }} className="h-full w-full" />
+          <SurfaceView content={scene.surfaces.centre ?? { elements: [] }} surface="centre" className="h-full w-full" />
         </div>
         <div className={cn(wall, 'right-0 top-[20%]')} style={{ transform: 'rotateY(-38deg) translateZ(-40px)' }} onPointerDown={() => onPick('right')}>
-          <SurfaceView content={scene.surfaces.right ?? { elements: [] }} className="h-full w-full" />
+          <SurfaceView content={scene.surfaces.right ?? { elements: [] }} surface="right" className="h-full w-full" />
         </div>
         <div className="absolute bottom-0 left-[20%] h-[28%] w-[60%] overflow-hidden" style={{ transform: 'rotateX(58deg)' }} onPointerDown={() => onPick('floor')}>
-          <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} className="h-full w-full" />
+          <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" className="h-full w-full" />
         </div>
       </div>
     </div>
@@ -253,6 +255,14 @@ function ElementInspector({ el, scenes, onChange, onDelete }: { el: SceneElement
       )}
 
       {el.type === 'web' && <Field label="Web address"><input value={el.src ?? ''} onChange={(e) => onChange({ src: e.target.value })} className={input} /></Field>}
+
+      {el.type === 'activity' && (
+        <Field label="Activity">
+          <select value={el.activityId ?? 'particles'} onChange={(e) => onChange({ activityId: e.target.value })} className={input}>
+            {ACTIVITIES.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.category}</option>)}
+          </select>
+        </Field>
+      )}
 
       {el.type === 'hotspot' && (
         <>

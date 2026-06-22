@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Stage } from './Stage';
 import { Icon } from './Icon';
+import { Activity } from './Activity';
 import { getScene } from '@/engine/scenes';
 import { cn } from '@/lib/cn';
 import type { SceneElement, SurfaceContent } from '@/lib/types';
@@ -11,6 +12,7 @@ function isVideo(src?: string) {
 
 interface Props {
   content: SurfaceContent;
+  surface?: string; // which surface this is (for activity touch routing)
   className?: string;
   editable?: boolean;
   selectedId?: string | null;
@@ -27,6 +29,7 @@ interface Props {
  */
 export function SurfaceView({
   content,
+  surface,
   className,
   editable,
   selectedId,
@@ -125,9 +128,7 @@ export function SurfaceView({
               </button>
             )}
             {el.type === 'activity' && (
-              <div className="flex h-full w-full items-center justify-center bg-black/30">
-                <span className="flex items-center gap-1 text-label-sm text-primary"><Icon name="auto_awesome" size={16} /> {el.activityId}</span>
-              </div>
+              <Activity activityId={el.activityId ?? 'particles'} surface={surface} interactive={!editable} />
             )}
           </div>
         );

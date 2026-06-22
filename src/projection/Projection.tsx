@@ -46,6 +46,7 @@ function AuthoredSurface({ expScenes, activeSceneId }: { expScenes: import('@/li
   return (
     <SurfaceView
       content={content}
+      surface={surface}
       className="h-full w-full"
       onHotspot={(el) => el.targetSceneId && setActiveScene(el.targetSceneId)}
     />
