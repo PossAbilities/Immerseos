@@ -38,7 +38,18 @@ export class HardwareManager {
       if (!dc.enabled) continue;
       const driver = this.makeDriver(dc);
       if (!driver) continue;
-      driver.onStateChange(() => this.emitStates());
+      driver.onStateChange((s) => {
+        this.emitStates();
+        // when a device (re)connects, push the current room state to it so it
+        // catches up — pairs with drivers clearing their de-dupe cache on connect.
+        if (s.status === 'online' && this.lastRoom) {
+          try {
+            driver.apply(this.lastRoom);
+          } catch {
+            /* isolated per device */
+          }
+        }
+      });
       this.drivers.set(dc.id, driver);
       driver.connect().catch(() => {
         /* driver reports its own error status */

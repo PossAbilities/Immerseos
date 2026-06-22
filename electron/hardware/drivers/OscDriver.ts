@@ -19,6 +19,9 @@ export class OscDriver extends BaseDriver {
 
   async connect() {
     this.setStatus('connecting');
+    // forget cached values so the first apply after binding actually transmits
+    this.lastVolume = -1;
+    this.lastMute = undefined;
     this.socket = dgram.createSocket('udp4');
     this.socket.on('error', (e) => this.setStatus('error', e.message));
     this.socket.bind(() => this.setStatus('online'));

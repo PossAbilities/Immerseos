@@ -23,6 +23,10 @@ export class PjLinkDriver extends BaseDriver {
 
   async connect() {
     this.setStatus('connecting');
+    // forget any cached desired-state so the first apply after we're online
+    // actually transmits (rather than being de-duped away).
+    this.lastPower = undefined;
+    this.lastShutter = undefined;
     try {
       await this.command('%1POWR ?'); // reachability check
       this.setStatus('online');
@@ -50,14 +54,18 @@ export class PjLinkDriver extends BaseDriver {
             return this.command(`%1INPT ${this.cfg.inputOnLive}`);
           }
         })
-        .catch((e) => this.setStatus('error', errMsg(e)));
+        .catch((e) => {
+          this.lastPower = undefined; // failed → allow a retry next apply
+          this.setStatus('error', errMsg(e));
+        });
     }
     if (shutter !== this.lastShutter) {
       this.lastShutter = shutter;
       // AVMT 31 = mute on (shutter closed), 30 = mute off
-      this.command(`%1AVMT ${shutter ? '31' : '30'}`).catch((e) =>
-        this.setStatus('error', errMsg(e)),
-      );
+      this.command(`%1AVMT ${shutter ? '31' : '30'}`).catch((e) => {
+        this.lastShutter = undefined; // failed → allow a retry next apply
+        this.setStatus('error', errMsg(e));
+      });
     }
   }
 
@@ -87,8 +95,9 @@ export class PjLinkDriver extends BaseDriver {
         buf += chunk.toString('ascii');
         if (!greeted && buf.includes('\r')) {
           greeted = true;
-          const greeting = buf.split('\r')[0];
-          buf = '';
+          const idx = buf.indexOf('\r');
+          const greeting = buf.slice(0, idx);
+          buf = buf.slice(idx + 1); // keep any bytes already pipelined after it
           let prefix = '';
           if (greeting.startsWith('PJLINK 1')) {
             const seed = greeting.split(' ')[2] ?? '';
@@ -99,7 +108,7 @@ export class PjLinkDriver extends BaseDriver {
             return done(() => reject(new Error('PJLink auth error')));
           }
           socket.write(prefix + cmd + '\r');
-          return;
+          // fall through: the response may already be in the same segment
         }
         if (greeted && buf.includes('\r')) {
           const reply = buf.split('\r')[0];
