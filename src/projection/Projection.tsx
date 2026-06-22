@@ -120,6 +120,10 @@ export function Projection() {
           ) : (
             <Stage sceneId={exp.sceneId} params={params} playing={playing} className="h-full w-full" />
           )}
+          {/* background audio — only the centre/primary window plays it, to avoid echo */}
+          {exp.audioTrack && (mySurface() ?? 'centre') === 'centre' && (
+            <audio src={exp.audioTrack} autoPlay loop />
+          )}
           {/* lighting wash / blackout */}
           <div
             className="pointer-events-none absolute inset-0 transition-all duration-700"

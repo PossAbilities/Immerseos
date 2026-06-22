@@ -6,7 +6,7 @@ import { useStore } from '@/store/useStore';
 const NAV = [
   { to: '/app/dashboard', icon: 'dashboard', label: 'Dashboard' },
   { to: '/app/library', icon: 'auto_awesome', label: 'Experiences' },
-  { to: '/app/creator', icon: 'architecture', label: 'Creator Tool' },
+  { to: '/app/editor/new', icon: 'architecture', label: 'Creator' },
   { to: '/app/remote', icon: 'settings_remote', label: 'Remote Control' },
   { to: '/app/settings', icon: 'settings', label: 'Settings' },
 ];

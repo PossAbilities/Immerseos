@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { SurfaceView } from '@/components/SurfaceView';
 import { GlassPanel, PrimaryButton, SectionLabel, Slider } from '@/components/ui';
 import { useStore, currentExperience } from '@/store/useStore';
+import { useRoomProfile } from '@/lib/roomBridge';
 import { EDITOR_SURFACES, getScenes, newElement, newScene } from '@/lib/sceneModel';
 import { SCENES } from '@/engine/scenes';
 import { ACTIVITIES } from '@/activities/registry';
@@ -44,7 +45,44 @@ export function Editor() {
   const setActiveScene = useStore((s) => s.setActiveScene);
 
   const operator = useStore((s) => s.operator);
-  const exp = useMemo(() => experiences.find((e) => e.id === id) ?? fromStore, [experiences, id, fromStore]);
+  const { profile } = useRoomProfile();
+
+  // A fresh blank experience for the "new" route (sidebar → Creator).
+  const [blank] = useState<Experience>(() => ({
+    id: `user-${Date.now()}`,
+    title: 'Untitled Experience',
+    category: 'Generative',
+    sceneId: SCENES[0].id,
+    tagline: 'Custom build',
+    description: '',
+    accent: SCENES[0].accent,
+    durationSec: 480,
+    builtIn: false,
+    createdAt: Date.now(),
+    params: { ...SCENES[0].defaults },
+    layers: [],
+    owner: operator,
+    contentType: 'Interactive',
+    isNew: true,
+    scenes: [newScene('Scene 1', SCENES[0].id)],
+  }));
+  const exp = useMemo(
+    () => (id && id !== 'new' ? (experiences.find((e) => e.id === id) ?? fromStore) : blank),
+    [experiences, id, fromStore, blank],
+  );
+
+  // The editor simulates the *actual* room: only the walls/floor the room layout
+  // has enabled (1/2/3 walls + floor/ceiling), falling back to a default set.
+  const roomSurfaces = useMemo(
+    () =>
+      (profile?.surfaces.filter((s) => s.enabled) ?? EDITOR_SURFACES.map((s) => ({ ...s, enabled: true }))).map(
+        (s) => ({ id: s.id, label: s.label }),
+      ),
+    [profile],
+  );
+  const walls = roomSurfaces.filter((s) => s.id !== 'floor' && s.id !== 'ceiling');
+  const floor = roomSurfaces.find((s) => s.id === 'floor');
+  const ceiling = roomSurfaces.find((s) => s.id === 'ceiling');
 
   // Built-ins can't be overwritten (saveUserExperiences drops them), so editing
   // one authors a persistent user copy under a fresh, stable id.
@@ -55,6 +93,15 @@ export function Editor() {
   const [selId, setSelId] = useState<string | null>(null);
   const [view, setView] = useState<'flat' | '3d'>('flat');
   const [saved, setSaved] = useState(true);
+  const [audioTrack, setAudioTrack] = useState<string | undefined>(exp.audioTrack);
+
+  // keep the selected surface valid for the current room layout
+  useEffect(() => {
+    if (!roomSurfaces.some((s) => s.id === surfaceId)) {
+      setSurfaceId(walls[0]?.id ?? roomSurfaces[0]?.id ?? 'centre');
+      setSelId(null);
+    }
+  }, [roomSurfaces, surfaceId, walls]);
 
   const scene = scenes[sceneIdx] ?? scenes[0];
   const selected = selId ? scene.surfaces[surfaceId]?.elements.find((e) => e.id === selId) : undefined;
@@ -80,6 +127,7 @@ export function Editor() {
     builtIn: false,
     owner: exp.owner ?? operator,
     scenes,
+    audioTrack,
   });
   const save = () => { addExperience(build()); setSaved(true); };
   const deploy = () => {
@@ -139,7 +187,7 @@ export function Editor() {
           </div>
 
           <div>
-            <SectionLabel>Add to “{EDITOR_SURFACES.find((s) => s.id === surfaceId)?.label}”</SectionLabel>
+            <SectionLabel>Add to “{roomSurfaces.find((s) => s.id === surfaceId)?.label ?? surfaceId}”</SectionLabel>
             <div className="mt-sm grid grid-cols-2 gap-base">
               {TOOLS.map((t) => (
                 <button key={t.type} onClick={() => addElement(t.type)} className="glass flex flex-col items-center gap-1 rounded-lg p-sm text-label-sm hover:bg-white/10">
@@ -149,25 +197,49 @@ export function Editor() {
               ))}
             </div>
           </div>
+
+          <div>
+            <SectionLabel>Background Audio</SectionLabel>
+            <div className="mt-sm flex items-center gap-base">
+              <button
+                onClick={() => readFile('audio/*', (url) => { setAudioTrack(url); setSaved(false); })}
+                className="glass flex flex-1 items-center justify-center gap-base rounded-lg p-sm text-label-sm hover:bg-white/10"
+              >
+                <Icon name={audioTrack ? 'graphic_eq' : 'upload'} size={18} className="text-secondary" />
+                {audioTrack ? 'Replace track' : 'Upload audio'}
+              </button>
+              {audioTrack && (
+                <button onClick={() => { setAudioTrack(undefined); setSaved(false); }} className="text-outline hover:text-error"><Icon name="close" size={16} /></button>
+              )}
+            </div>
+          </div>
         </GlassPanel>
 
         {/* centre: surfaces */}
         <div className="col-span-7 overflow-auto rounded-xl bg-black/40 p-md custom-scrollbar">
           {view === 'flat' ? (
             <div className="flex h-full flex-col gap-sm">
-              <div className="grid flex-1 grid-cols-3 gap-sm">
-                {EDITOR_SURFACES.slice(0, 3).map((s) => (
-                  <SurfacePane key={s.id} label={s.label} active={surfaceId === s.id} onPick={() => { setSurfaceId(s.id); setSelId(null); }}>
+              {ceiling && (
+                <SurfacePane label={ceiling.label} active={surfaceId === ceiling.id} onPick={() => { setSurfaceId(ceiling.id); setSelId(null); }} className="h-20">
+                  <SurfaceView content={scene.surfaces[ceiling.id] ?? { elements: [] }} surface={ceiling.id} editable selectedId={surfaceId === ceiling.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                </SurfacePane>
+              )}
+              <div className="flex flex-1 gap-sm">
+                {walls.map((s) => (
+                  <SurfacePane key={s.id} label={s.label} active={surfaceId === s.id} onPick={() => { setSurfaceId(s.id); setSelId(null); }} className={cn('flex-1', s.id === 'centre' && walls.length > 1 && 'flex-[1.6]')}>
                     <SurfaceView content={scene.surfaces[s.id] ?? { elements: [] }} surface={s.id} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                   </SurfacePane>
                 ))}
+                {walls.length === 0 && <div className="flex flex-1 items-center justify-center text-label-sm text-on-surface-variant">No walls in this room layout — enable surfaces in Room Setup.</div>}
               </div>
-              <SurfacePane label="Floor" active={surfaceId === 'floor'} onPick={() => { setSurfaceId('floor'); setSelId(null); }} className="h-32">
-                <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" editable selectedId={surfaceId === 'floor' ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
-              </SurfacePane>
+              {floor && (
+                <SurfacePane label={floor.label} active={surfaceId === floor.id} onPick={() => { setSurfaceId(floor.id); setSelId(null); }} className="h-32">
+                  <SurfaceView content={scene.surfaces[floor.id] ?? { elements: [] }} surface={floor.id} editable selectedId={surfaceId === floor.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                </SurfacePane>
+              )}
             </div>
           ) : (
-            <VirtualRoom scene={scene} onPick={(sid) => { setSurfaceId(sid); setSelId(null); }} />
+            <VirtualRoom scene={scene} walls={walls.map((w) => w.id)} hasFloor={!!floor} onPick={(sid) => { setSurfaceId(sid); setSelId(null); }} />
           )}
         </div>
 
@@ -176,7 +248,7 @@ export function Editor() {
           {selected ? (
             <ElementInspector el={selected} scenes={scenes} onChange={(p) => patchElement(selected.id, p)} onDelete={() => { mutateSurface(surfaceId, (c) => ({ ...c, elements: c.elements.filter((e) => e.id !== selected.id) })); setSelId(null); }} />
           ) : (
-            <BackgroundInspector content={scene.surfaces[surfaceId] ?? { elements: [] }} label={EDITOR_SURFACES.find((s) => s.id === surfaceId)?.label ?? surfaceId} onChange={(p) => mutateSurface(surfaceId, (c) => ({ ...c, ...p }))} />
+            <BackgroundInspector content={scene.surfaces[surfaceId] ?? { elements: [] }} label={roomSurfaces.find((s) => s.id === surfaceId)?.label ?? surfaceId} onChange={(p) => mutateSurface(surfaceId, (c) => ({ ...c, ...p }))} />
           )}
         </GlassPanel>
       </div>
@@ -197,23 +269,32 @@ function SurfacePane({ label, active, onPick, className, children }: { label: st
 }
 
 /** A CSS-3D approximation of the room for the "Virtual Room" preview. */
-function VirtualRoom({ scene, onPick }: { scene: Scene; onPick: (sid: string) => void }) {
+function VirtualRoom({ scene, walls, hasFloor, onPick }: { scene: Scene; walls: string[]; hasFloor: boolean; onPick: (sid: string) => void }) {
   const wall = 'absolute h-[60%] w-[40%] origin-center overflow-hidden';
+  const has = (id: string) => walls.includes(id);
   return (
     <div className="flex h-full items-center justify-center" style={{ perspective: '1200px' }}>
       <div className="relative h-[70%] w-[70%]" style={{ transformStyle: 'preserve-3d' }}>
-        <div className={cn(wall, 'left-0 top-[20%]')} style={{ transform: 'rotateY(38deg) translateZ(-40px)' }} onPointerDown={() => onPick('left')}>
-          <SurfaceView content={scene.surfaces.left ?? { elements: [] }} surface="left" className="h-full w-full" />
-        </div>
-        <div className="absolute left-[30%] top-[20%] h-[60%] w-[40%] overflow-hidden" onPointerDown={() => onPick('centre')}>
-          <SurfaceView content={scene.surfaces.centre ?? { elements: [] }} surface="centre" className="h-full w-full" />
-        </div>
-        <div className={cn(wall, 'right-0 top-[20%]')} style={{ transform: 'rotateY(-38deg) translateZ(-40px)' }} onPointerDown={() => onPick('right')}>
-          <SurfaceView content={scene.surfaces.right ?? { elements: [] }} surface="right" className="h-full w-full" />
-        </div>
-        <div className="absolute bottom-0 left-[20%] h-[28%] w-[60%] overflow-hidden" style={{ transform: 'rotateX(58deg)' }} onPointerDown={() => onPick('floor')}>
-          <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" className="h-full w-full" />
-        </div>
+        {has('left') && (
+          <div className={cn(wall, 'left-0 top-[20%]')} style={{ transform: 'rotateY(38deg) translateZ(-40px)' }} onPointerDown={() => onPick('left')}>
+            <SurfaceView content={scene.surfaces.left ?? { elements: [] }} surface="left" className="h-full w-full" />
+          </div>
+        )}
+        {has('centre') && (
+          <div className="absolute left-[30%] top-[20%] h-[60%] w-[40%] overflow-hidden" onPointerDown={() => onPick('centre')}>
+            <SurfaceView content={scene.surfaces.centre ?? { elements: [] }} surface="centre" className="h-full w-full" />
+          </div>
+        )}
+        {has('right') && (
+          <div className={cn(wall, 'right-0 top-[20%]')} style={{ transform: 'rotateY(-38deg) translateZ(-40px)' }} onPointerDown={() => onPick('right')}>
+            <SurfaceView content={scene.surfaces.right ?? { elements: [] }} surface="right" className="h-full w-full" />
+          </div>
+        )}
+        {hasFloor && (
+          <div className="absolute bottom-0 left-[20%] h-[28%] w-[60%] overflow-hidden" style={{ transform: 'rotateX(58deg)' }} onPointerDown={() => onPick('floor')}>
+            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" className="h-full w-full" />
+          </div>
+        )}
       </div>
     </div>
   );
