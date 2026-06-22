@@ -29,6 +29,11 @@ function mySurface(): string | null {
 function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: import('@/lib/types').Scene[]; activeSceneId?: string; wallOrder?: string[] }) {
   const surface = useRef(mySurface() ?? 'centre').current;
   const setActiveScene = useStore((s) => s.setActiveScene);
+  const applyAtomSets = useStore((s) => s.applyAtomSets);
+  const onHotspot = (el: import('@/lib/types').SceneElement) => {
+    if (el.setAtoms?.length) applyAtomSets(el.setAtoms);
+    if (el.targetSceneId) setActiveScene(el.targetSceneId);
+  };
   const scene = expScenes.find((s) => s.id === activeSceneId) ?? expScenes[0];
   const content = wallContent(scene, surface);
   const order = wallOrder && wallOrder.length ? wallOrder : ['left', 'centre', 'right'];
@@ -40,11 +45,12 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
     return onSurfaceTouch((t) => {
       if (t.surface !== surface || t.phase !== 'down') return;
       const hit = content.elements.find(
-        (el) => el.type === 'hotspot' && el.targetSceneId && t.x >= el.x && t.x <= el.x + el.w && t.y >= el.y && t.y <= el.y + el.h,
+        (el) => el.type === 'hotspot' && (el.targetSceneId || el.setAtoms) && t.x >= el.x && t.x <= el.x + el.w && t.y >= el.y && t.y <= el.y + el.h,
       );
-      if (hit?.targetSceneId) setActiveScene(hit.targetSceneId);
+      if (hit) onHotspot(hit);
     });
-  }, [surface, content, setActiveScene]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surface, content, setActiveScene, applyAtomSets]);
 
   return (
     <SurfaceView
@@ -53,7 +59,7 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
       bgOverride={bgOverride}
       equirect={equirect}
       className="h-full w-full"
-      onHotspot={(el) => el.targetSceneId && setActiveScene(el.targetSceneId)}
+      onHotspot={onHotspot}
     />
   );
 }

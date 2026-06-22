@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { cn } from '@/lib/cn';
+import { useStore } from '@/store/useStore';
 import type { SceneElement } from '@/lib/types';
 
 // Small interactive "atoms" placed on a surface. They animate as live previews
@@ -26,32 +27,37 @@ export function TimerEl({ el }: { el: SceneElement }) {
 
 export function ScoreEl({ el, interactive }: { el: SceneElement; interactive?: boolean }) {
   const [n, setN] = useState(0);
+  // when bound to an atom, mirror its live value; otherwise tap to increment
+  const bound = useStore((s) => (el.bindAtomId ? s.atoms?.[el.bindAtomId] : undefined));
+  const value = el.bindAtomId ? Number(bound ?? 0) : n;
   return (
     <button
-      onClick={() => interactive && setN((v) => v + 1)}
+      onClick={() => interactive && !el.bindAtomId && setN((v) => v + 1)}
       className="flex h-full w-full flex-col items-center justify-center rounded-xl bg-black/50"
-      style={{ color: el.color, cursor: interactive ? 'pointer' : 'default' }}
+      style={{ color: el.color, cursor: interactive && !el.bindAtomId ? 'pointer' : 'default' }}
     >
       <span className="uppercase tracking-widest" style={{ fontSize: '14cqh' }}>{el.label ?? 'Score'}</span>
-      <span className="font-mono font-bold" style={{ fontSize: '34cqh' }}>{n}</span>
+      <span className="font-mono font-bold" style={{ fontSize: '34cqh' }}>{value}</span>
     </button>
   );
 }
 
 export function ProgressEl({ el }: { el: SceneElement }) {
   const total = (el.duration ?? 30) * 1000;
-  const [pct, setPct] = useState(0);
+  const [auto, setAuto] = useState(0);
   const start = useRef(performance.now());
+  const bound = useStore((s) => (el.bindAtomId ? s.atoms?.[el.bindAtomId] : undefined));
   useEffect(() => {
+    if (el.bindAtomId) return; // bound progress is driven by the atom, not time
     let raf = 0;
     const loop = () => {
-      const p = ((performance.now() - start.current) % total) / total;
-      setPct(p * 100);
+      setAuto((((performance.now() - start.current) % total) / total) * 100);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [total]);
+  }, [total, el.bindAtomId]);
+  const pct = el.bindAtomId ? Math.max(0, Math.min(100, Number(bound ?? 0) * 100)) : auto;
   return (
     <div className="flex h-full w-full items-center overflow-hidden rounded-full bg-black/50 p-[10%]">
       <div className="h-full w-full overflow-hidden rounded-full bg-white/10">

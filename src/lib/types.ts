@@ -41,6 +41,38 @@ export type ElementType =
 
 export type LockKind = 'numberpad' | 'sliding' | 'descramble';
 
+// ---- Atoms: typed shared variables + simple event logic ----
+export type AtomType = 'bool' | 'int' | 'float' | 'string';
+export type AtomValue = boolean | number | string;
+
+export interface AtomDef {
+  id: string;
+  name: string;
+  type: AtomType;
+  scope: 'global' | 'scene'; // scene-scoped atoms reset on scene change
+  value: AtomValue; // default / initial value
+}
+
+export type AtomOp = 'set' | 'add' | 'toggle';
+export interface AtomSet {
+  atomId: string;
+  op: AtomOp;
+  value?: AtomValue;
+}
+
+export type AtomCmp = '==' | '!=' | '>' | '<' | '>=' | '<=';
+/** When `atomId cmp value` holds, run the action (navigate or set atoms). */
+export interface AtomEvent {
+  id: string;
+  atomId: string;
+  cmp: AtomCmp;
+  value: AtomValue;
+  action: 'scene' | 'set';
+  targetSceneId?: string;
+  sets?: AtomSet[];
+  once?: boolean; // fire only once per scene entry (default true)
+}
+
 /** How a scene's background is mapped onto the room's surfaces. */
 export type BackgroundType =
   | 'per-surface' // each wall has its own media
@@ -70,6 +102,8 @@ export interface SceneElement {
   duration?: number; // seconds — timer / progress
   lockKind?: LockKind; // for type 'lock'
   code?: string; // unlock code for type 'lock'
+  setAtoms?: AtomSet[]; // hotspot/lock: variables to set on activation
+  bindAtomId?: string; // score/progress: display this atom's value
   // hotspot / lock behaviour: navigate to another scene in the same experience
   targetSceneId?: string;
   label?: string;
@@ -94,6 +128,7 @@ export interface Scene {
   backgroundType?: BackgroundType;
   panoramaSrc?: string; // wide image/video for panorama / 360 modes
   panoramaColor?: string; // for the 'colour' mode
+  events?: AtomEvent[]; // atom-driven logic for this scene
 }
 
 export type ExperienceVisibility = 'private' | 'team' | 'public';
@@ -138,6 +173,7 @@ export interface Experience {
   owner?: string; // operator id who created it
   aspectRatio?: string; // editor surface render ratio, e.g. '16:9'
   wallOrder?: string[]; // ordered wall surface ids (for panorama slicing)
+  atoms?: AtomDef[]; // experience-wide variable definitions
   // --- multi-scene authored content (optional) ---
   scenes?: Scene[];
 }
@@ -169,6 +205,7 @@ export interface RoomState {
   lighting: LightingPreset;
   lightIntensity: number; // 0..100
   params: SceneParams; // live overrides for the active scene
+  atoms?: Record<string, AtomValue>; // live atom values (shared across surfaces)
   updatedAt: number;
 }
 

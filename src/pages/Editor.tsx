@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { SurfaceView } from '@/components/SurfaceView';
@@ -9,7 +9,11 @@ import { EDITOR_SURFACES, equirectView, getScenes, newElement, newScene, panoram
 import { SCENES } from '@/engine/scenes';
 import { ACTIVITIES } from '@/activities/registry';
 import { cn } from '@/lib/cn';
-import type { BackgroundType, ElementType, Experience, Scene, SceneElement, SurfaceContent } from '@/lib/types';
+import { atomLabel, applySets, eventHolds, initialAtoms, resetSceneAtoms, SCENE_TIME, EXPERIENCE_TIME } from '@/lib/atoms';
+import type {
+  AtomCmp, AtomDef, AtomEvent, AtomOp, AtomSet, AtomType, AtomValue,
+  BackgroundType, ElementType, Experience, Scene, SceneElement, SurfaceContent,
+} from '@/lib/types';
 
 const ASPECTS = ['16:9', '16:10', '4:3', '1:1', '32:9'];
 const ratioCss = (r?: string) => (r ? r.replace(':', ' / ') : '16 / 9');
@@ -114,6 +118,7 @@ export function Editor() {
   const [view, setView] = useState<'flat' | '3d'>('flat');
   const [aspect, setAspect] = useState(exp.aspectRatio ?? '16:9');
   const [audioTrack, setAudioTrack] = useState<string | undefined>(exp.audioTrack);
+  const [atomDefs, setAtomDefs] = useState<AtomDef[]>(exp.atoms ?? []);
   const [panel, setPanel] = useState<PanelId | null>('scenes');
   const [bgPanel, setBgPanel] = useState(false);
   const [preview, setPreview] = useState(false);
@@ -151,7 +156,7 @@ export function Editor() {
     dirty();
   };
 
-  const build = (): Experience => ({ ...exp, id: targetId, title, category, accent, builtIn: false, owner: exp.owner ?? operator, scenes, audioTrack, aspectRatio: aspect, wallOrder: walls.map((w) => w.id) });
+  const build = (): Experience => ({ ...exp, id: targetId, title, category, accent, builtIn: false, owner: exp.owner ?? operator, scenes, atoms: atomDefs, audioTrack, aspectRatio: aspect, wallOrder: walls.map((w) => w.id) });
   const save = () => { addExperience(build()); setSaved(true); };
   const deploy = () => { const e = build(); addExperience(e); loadExperience(e.id); goLive(true); setActiveScene(scenes[0].id); navigate(`/app/experience/${e.id}`); };
 
@@ -263,6 +268,9 @@ export function Editor() {
                   </Labeled>
                 ) : null}
                 <button onClick={() => { setBgPanel(true); setSelId(null); }} className="mt-sm flex w-full items-center gap-base rounded-lg bg-primary/15 p-sm text-label-md text-primary"><Icon name="wallpaper" size={18} /> Edit background…</button>
+                <div className="border-t border-white/5 pt-md">
+                  <EventsEditor events={scene.events ?? []} atoms={atomDefs} scenes={scenes} onChange={(events) => mutate((s) => ({ ...s, events }))} />
+                </div>
               </Section>
             )}
             {panel === 'theme' && (
@@ -271,11 +279,9 @@ export function Editor() {
                 <p className="text-label-sm text-on-surface-variant">Sets the experience's accent used on cards and glows.</p>
               </Section>
             )}
-            {panel === 'atoms' && (
-              <Section title="Atoms"><ToolGrid tools={ATOM_TOOLS} onAdd={addElement} /></Section>
-            )}
+            {panel === 'atoms' && <AtomsManager defs={atomDefs} setDefs={(d) => { setAtomDefs(d); dirty(); }} />}
             {panel === 'items' && (
-              <Section title="Scene Items"><ToolGrid tools={ITEM_TOOLS} onAdd={addElement} /></Section>
+              <Section title="Scene Items"><ToolGrid tools={[...ATOM_TOOLS, ...ITEM_TOOLS]} onAdd={addElement} /></Section>
             )}
           </aside>
         )}
@@ -322,7 +328,7 @@ export function Editor() {
               <button onClick={() => { setSelId(null); setBgPanel(false); }} className="text-outline hover:text-on-surface"><Icon name="close" size={18} /></button>
             </div>
             {selected ? (
-              <ElementInspector el={selected} scenes={scenes} onChange={(p) => patchElement(selected.id, p)} onDelete={() => { mutateSurface(surfaceId, (c) => ({ ...c, elements: c.elements.filter((e) => e.id !== selected.id) })); setSelId(null); }} />
+              <ElementInspector el={selected} scenes={scenes} atoms={atomDefs} onChange={(p) => patchElement(selected.id, p)} onDelete={() => { mutateSurface(surfaceId, (c) => ({ ...c, elements: c.elements.filter((e) => e.id !== selected.id) })); setSelId(null); }} />
             ) : (
               <BackgroundPanel scene={scene} surfaceId={surfaceId} surfaceLabel={roomSurfaces.find((s) => s.id === surfaceId)?.label ?? surfaceId} onScene={(p) => mutate((s) => ({ ...s, ...p }))} onSurface={(p) => mutateSurface(surfaceId, (c) => ({ ...c, ...p }))} />
             )}
@@ -333,6 +339,7 @@ export function Editor() {
       {preview && (
         <PreviewStage
           scenes={scenes}
+          atoms={atomDefs}
           startSceneId={previewSceneId ?? scene.id}
           walls={walls.map((w) => w.id)}
           hasFloor={!!floor}
@@ -345,11 +352,56 @@ export function Editor() {
   );
 }
 
-function PreviewStage({ scenes, startSceneId, walls, hasFloor, aspect, audioTrack, onClose }: { scenes: Scene[]; startSceneId: string; walls: string[]; hasFloor: boolean; aspect: string; audioTrack?: string; onClose: () => void }) {
+function PreviewStage({ scenes, atoms, startSceneId, walls, hasFloor, aspect, audioTrack, onClose }: { scenes: Scene[]; atoms: AtomDef[]; startSceneId: string; walls: string[]; hasFloor: boolean; aspect: string; audioTrack?: string; onClose: () => void }) {
   const [activeId, setActiveId] = useState(startSceneId);
   const scene = scenes.find((s) => s.id === activeId) ?? scenes[0];
   const count = walls.length || 1;
-  const go = (el: SceneElement) => el.targetSceneId && scenes.some((s) => s.id === el.targetSceneId) && setActiveId(el.targetSceneId);
+  const expStart = useRef(performance.now());
+  const sceneStart = useRef(performance.now());
+  const fired = useRef(new Set<string>());
+
+  // Seed atom values into the store so bound Score/Progress elements (which read
+  // the shared live atoms) reflect the playtest. setState (not patch) keeps it
+  // local — preview never broadcasts to the projection/remote surfaces.
+  useEffect(() => { useStore.setState({ atoms: initialAtoms(atoms) }); }, [atoms]);
+
+  const goScene = (sid: string) => {
+    if (!scenes.some((s) => s.id === sid)) return;
+    useStore.setState((st) => ({ atoms: resetSceneAtoms(st.atoms ?? {}, atoms) }));
+    sceneStart.current = performance.now();
+    fired.current = new Set();
+    setActiveId(sid);
+  };
+  const go = (el: SceneElement) => {
+    if (el.setAtoms?.length) useStore.setState((st) => ({ atoms: applySets(st.atoms ?? {}, el.setAtoms) }));
+    if (el.targetSceneId) goScene(el.targetSceneId);
+  };
+
+  // local atoms engine — evaluate the active scene's events against live values
+  // plus the predefined scene/experience timers, firing scene-links / setters.
+  useEffect(() => {
+    const sc = scenes.find((s) => s.id === activeId) ?? scenes[0];
+    if (!sc?.events?.length) return;
+    const t = setInterval(() => {
+      const now = performance.now();
+      const working = {
+        ...(useStore.getState().atoms ?? {}),
+        [SCENE_TIME]: (now - sceneStart.current) / 1000,
+        [EXPERIENCE_TIME]: (now - expStart.current) / 1000,
+      };
+      for (const e of sc.events!) {
+        const onlyOnce = e.once !== false;
+        if (onlyOnce && fired.current.has(e.id)) continue;
+        if (!eventHolds(working, e)) continue;
+        fired.current.add(e.id);
+        if (e.action === 'scene' && e.targetSceneId) goScene(e.targetSceneId);
+        else if (e.action === 'set') useStore.setState((st) => ({ atoms: applySets(st.atoms ?? {}, e.sets) }));
+      }
+    }, 200);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, scenes, atoms]);
+
   return (
     <div className="fixed inset-0 z-[300] flex flex-col bg-black">
       <div className="flex items-center justify-between px-md py-sm text-on-surface">
@@ -437,7 +489,7 @@ function VirtualRoom({ scene, walls, wallCount, hasFloor, onPick }: { scene: Sce
   );
 }
 
-function ElementInspector({ el, scenes, onChange, onDelete }: { el: SceneElement; scenes: Scene[]; onChange: (p: Partial<SceneElement>) => void; onDelete: () => void }) {
+function ElementInspector({ el, scenes, atoms, onChange, onDelete }: { el: SceneElement; scenes: Scene[]; atoms: AtomDef[]; onChange: (p: Partial<SceneElement>) => void; onDelete: () => void }) {
   return (
     <div className="space-y-md">
       <div className="flex items-center justify-between">
@@ -464,6 +516,14 @@ function ElementInspector({ el, scenes, onChange, onDelete }: { el: SceneElement
       )}
       {(el.type === 'timer' || el.type === 'progress') && <Labeled label="Duration (seconds)"><input type="number" min={1} value={el.duration ?? 30} onChange={(e) => onChange({ duration: Number(e.target.value) })} className={inputCls} /></Labeled>}
       {el.type === 'score' && <Labeled label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} /></Labeled>}
+      {(el.type === 'score' || el.type === 'progress') && (
+        <Labeled label="Bind to variable">
+          <select value={el.bindAtomId ?? ''} onChange={(e) => onChange({ bindAtomId: e.target.value || undefined })} className={inputCls}>
+            <option value="">(none — {el.type === 'score' ? 'tap to count' : 'auto timer'})</option>
+            {atoms.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </Labeled>
+      )}
       {(el.type === 'hotspot' || el.type === 'lock') && (
         <>
           {el.type === 'hotspot' && <Labeled label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} /></Labeled>}
@@ -477,6 +537,10 @@ function ElementInspector({ el, scenes, onChange, onDelete }: { el: SceneElement
               {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </Labeled>
+          <div className="border-t border-white/5 pt-md">
+            <span className="text-label-sm text-on-surface-variant">Set variables on {el.type === 'lock' ? 'unlock' : 'tap'}</span>
+            <div className="mt-xs"><AtomSetEditor sets={el.setAtoms ?? []} atoms={atoms} onChange={(setAtoms) => onChange({ setAtoms })} /></div>
+          </div>
         </>
       )}
       {el.type !== 'web' && el.type !== 'image' && el.type !== 'video' && (
@@ -542,5 +606,148 @@ function BackgroundPanel({ scene, surfaceId, surfaceLabel, onScene, onSurface }:
         </div>
       )}
     </div>
+  );
+}
+
+// ---- Atoms authoring ----
+
+const ATOM_TYPES: AtomType[] = ['bool', 'int', 'float', 'string'];
+const CMPS: AtomCmp[] = ['==', '!=', '>', '<', '>=', '<='];
+
+function defaultForType(t: AtomType): AtomValue {
+  return t === 'bool' ? false : t === 'string' ? '' : 0;
+}
+function newAtom(existing: AtomDef[]): AtomDef {
+  return { id: `atom-${rid()}`, name: `var${existing.length + 1}`, type: 'int', scope: 'global', value: 0 };
+}
+/** Resolve an atom's value type, including the predefined runtime timers. */
+function atomType(atoms: AtomDef[], atomId: string): AtomType {
+  if (atomId === SCENE_TIME || atomId === EXPERIENCE_TIME) return 'float';
+  return atoms.find((a) => a.id === atomId)?.type ?? 'float';
+}
+
+/** A type-aware editor for a single atom value (default, comparison or set). */
+function AtomValueInput({ type, value, onChange }: { type: AtomType; value: AtomValue | undefined; onChange: (v: AtomValue) => void }) {
+  if (type === 'bool')
+    return (
+      <select value={String(value === true)} onChange={(e) => onChange(e.target.value === 'true')} className={inputCls}>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  if (type === 'string')
+    return <input value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} className={inputCls} />;
+  return <input type="number" value={Number(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} className={inputCls} />;
+}
+
+/** Edit a list of variable assignments (used by hotspots/locks and events). */
+function AtomSetEditor({ sets, atoms, onChange }: { sets: AtomSet[]; atoms: AtomDef[]; onChange: (s: AtomSet[]) => void }) {
+  const add = () => atoms.length && onChange([...sets, { atomId: atoms[0].id, op: 'set', value: defaultForType(atoms[0].type) }]);
+  const update = (i: number, patch: Partial<AtomSet>) => onChange(sets.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  if (!atoms.length) return <p className="text-label-sm text-outline">Create an atom first.</p>;
+  return (
+    <div className="space-y-base">
+      {sets.map((s, i) => (
+        <div key={i} className="space-y-1 rounded-lg border border-white/10 p-1">
+          <div className="flex items-center gap-1">
+            <select value={s.atomId} onChange={(e) => update(i, { atomId: e.target.value })} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none">
+              {atoms.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <select value={s.op} onChange={(e) => update(i, { op: e.target.value as AtomOp })} className="rounded bg-surface-container-low p-1 text-label-sm outline-none">
+              <option value="set">set</option>
+              <option value="add">add</option>
+              <option value="toggle">toggle</option>
+            </select>
+            <button onClick={() => onChange(sets.filter((_, j) => j !== i))} className="text-outline hover:text-error"><Icon name="close" size={14} /></button>
+          </div>
+          {s.op !== 'toggle' && (
+            <AtomValueInput type={s.op === 'add' ? 'float' : atomType(atoms, s.atomId)} value={s.value} onChange={(v) => update(i, { value: v })} />
+          )}
+        </div>
+      ))}
+      <button onClick={add} className="text-label-sm text-primary hover:underline">+ set a variable</button>
+    </div>
+  );
+}
+
+/** Left-rail panel: create/edit/delete the experience's shared variables. */
+function AtomsManager({ defs, setDefs }: { defs: AtomDef[]; setDefs: (d: AtomDef[]) => void }) {
+  const live = useStore((s) => s.atoms);
+  const update = (id: string, patch: Partial<AtomDef>) => setDefs(defs.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  return (
+    <Section title="Atoms" action={<button onClick={() => setDefs([...defs, newAtom(defs)])} className="hover:text-primary"><Icon name="add" size={18} /></button>}>
+      <p className="text-label-sm text-on-surface-variant">Shared variables you read &amp; change with hotspots, locks and events — the logic that makes a room interactive.</p>
+      <div className="space-y-base">
+        {defs.length === 0 && <p className="text-label-sm text-outline">No variables yet.</p>}
+        {defs.map((d) => (
+          <div key={d.id} className="space-y-1 rounded-lg border border-white/10 bg-surface-container/40 p-sm">
+            <div className="flex items-center gap-base">
+              <input value={d.name} onChange={(e) => update(d.id, { name: e.target.value })} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none" placeholder="name" />
+              <button onClick={() => setDefs(defs.filter((x) => x.id !== d.id))} className="text-outline hover:text-error"><Icon name="delete" size={16} /></button>
+            </div>
+            <div className="flex gap-base">
+              <select value={d.type} onChange={(e) => { const t = e.target.value as AtomType; update(d.id, { type: t, value: defaultForType(t) }); }} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none">
+                {ATOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={d.scope} onChange={(e) => update(d.id, { scope: e.target.value as AtomDef['scope'] })} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none">
+                <option value="global">global</option>
+                <option value="scene">scene</option>
+              </select>
+            </div>
+            <Labeled label="Default value"><AtomValueInput type={d.type} value={d.value} onChange={(v) => update(d.id, { value: v })} /></Labeled>
+            {live && d.id in live && <p className="text-[10px] text-secondary">live: {String(live[d.id])}</p>}
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/** Scene panel: author the scene's atom-driven events (logic rules). */
+function EventsEditor({ events, atoms, scenes, onChange }: { events: AtomEvent[]; atoms: AtomDef[]; scenes: Scene[]; onChange: (e: AtomEvent[]) => void }) {
+  const options = [
+    { id: SCENE_TIME, name: atomLabel(SCENE_TIME) },
+    { id: EXPERIENCE_TIME, name: atomLabel(EXPERIENCE_TIME) },
+    ...atoms.map((a) => ({ id: a.id, name: a.name })),
+  ];
+  const add = () => onChange([...events, { id: `evt-${rid()}`, atomId: options[0].id, cmp: '>=', value: 0, action: 'scene', once: true }]);
+  const update = (i: number, patch: Partial<AtomEvent>) => onChange(events.map((e, j) => (j === i ? { ...e, ...patch } : e)));
+  return (
+    <Section title="Events" action={<button onClick={add} className="hover:text-primary"><Icon name="add" size={18} /></button>}>
+      <p className="text-label-sm text-on-surface-variant">When a variable hits a value, jump to a scene or change variables.</p>
+      {events.length === 0 && <p className="text-label-sm text-outline">No events.</p>}
+      {events.map((e, i) => (
+        <div key={e.id} className="space-y-base rounded-lg border border-white/10 bg-surface-container/40 p-sm">
+          <div className="flex items-center justify-between text-label-sm uppercase tracking-widest text-on-surface-variant">
+            When
+            <button onClick={() => onChange(events.filter((_, j) => j !== i))} className="text-outline hover:text-error"><Icon name="delete" size={14} /></button>
+          </div>
+          <div className="flex gap-1">
+            <select value={e.atomId} onChange={(ev) => update(i, { atomId: ev.target.value })} className="min-w-0 flex-1 rounded bg-surface-container-low p-1 text-label-sm outline-none">
+              {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <select value={e.cmp} onChange={(ev) => update(i, { cmp: ev.target.value as AtomCmp })} className="rounded bg-surface-container-low p-1 text-label-sm outline-none">
+              {CMPS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <AtomValueInput type={atomType(atoms, e.atomId)} value={e.value} onChange={(v) => update(i, { value: v })} />
+          <Labeled label="Then">
+            <select value={e.action} onChange={(ev) => update(i, { action: ev.target.value as AtomEvent['action'] })} className={inputCls}>
+              <option value="scene">Go to scene</option>
+              <option value="set">Set variables</option>
+            </select>
+          </Labeled>
+          {e.action === 'scene' ? (
+            <select value={e.targetSceneId ?? ''} onChange={(ev) => update(i, { targetSceneId: ev.target.value || undefined })} className={inputCls}>
+              <option value="">(pick a scene)</option>
+              {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          ) : (
+            <AtomSetEditor sets={e.sets ?? []} atoms={atoms} onChange={(sets) => update(i, { sets })} />
+          )}
+          <label className="flex items-center gap-base text-label-sm"><input type="checkbox" checked={e.once !== false} onChange={(ev) => update(i, { once: ev.target.checked })} className="h-4 w-4 accent-primary" /> Fire once per scene entry</label>
+        </div>
+      ))}
+    </Section>
   );
 }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useStore, currentExperience } from './store/useStore';
+import { eventHolds, SCENE_TIME, EXPERIENCE_TIME } from './lib/atoms';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
 import { Splash } from './components/Splash';
@@ -41,6 +42,7 @@ function AppLayout() {
   const activeSceneId = useStore((s) => s.activeSceneId);
   const exp = useStore(currentExperience);
   const setActiveScene = useStore((s) => s.setActiveScene);
+  const applyAtomSets = useStore((s) => s.applyAtomSets);
   useEffect(() => {
     if (!live || !exp.scenes?.length) return;
     const scenes = exp.scenes;
@@ -51,6 +53,36 @@ function AppLayout() {
     const t = setTimeout(() => setActiveScene(next), sc.autoAdvanceSec * 1000);
     return () => clearTimeout(t);
   }, [live, activeSceneId, exp, setActiveScene]);
+
+  // Atoms engine: evaluate the active scene's events against live atom values +
+  // predefined scene/experience timers, firing scene-links / atom-setters once.
+  const expStart = useRef(0);
+  const sceneStart = useRef(0);
+  const fired = useRef(new Set<string>());
+  useEffect(() => { if (live) expStart.current = performance.now(); }, [live]);
+  useEffect(() => { sceneStart.current = performance.now(); fired.current = new Set(); }, [activeSceneId, live]);
+  useEffect(() => {
+    if (!live || !exp.scenes?.length) return;
+    const t = setInterval(() => {
+      const scene = exp.scenes!.find((s) => s.id === activeSceneId) ?? exp.scenes![0];
+      if (!scene.events?.length) return;
+      const now = performance.now();
+      const working = {
+        ...(useStore.getState().atoms ?? {}),
+        [SCENE_TIME]: (now - sceneStart.current) / 1000,
+        [EXPERIENCE_TIME]: (now - expStart.current) / 1000,
+      };
+      for (const e of scene.events) {
+        const onlyOnce = e.once !== false;
+        if (onlyOnce && fired.current.has(e.id)) continue;
+        if (!eventHolds(working, e)) continue;
+        fired.current.add(e.id);
+        if (e.action === 'scene' && e.targetSceneId) setActiveScene(e.targetSceneId);
+        else if (e.action === 'set') applyAtomSets(e.sets);
+      }
+    }, 200);
+    return () => clearInterval(t);
+  }, [live, activeSceneId, exp, setActiveScene, applyAtomSets]);
 
   // On the desktop app, force first-run room setup before anything else.
   const { profile } = useRoomProfile();

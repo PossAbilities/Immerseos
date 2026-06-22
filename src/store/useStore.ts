@@ -10,6 +10,8 @@ import {
 } from '@/data/experiences';
 import { CLIENT_ID, Sync, nextMessageId } from '@/lib/sync';
 import { emitSurfaceTouch } from '@/lib/touchBus';
+import { applySets, initialAtoms, resetSceneAtoms } from '@/lib/atoms';
+import type { AtomSet } from '@/lib/types';
 
 export interface AppState extends RoomState {
   experiences: Experience[];
@@ -28,6 +30,7 @@ export interface AppState extends RoomState {
   togglePlay: () => void;
   setParam: (key: keyof SceneParams, value: number) => void;
   setActiveScene: (sceneId: string) => void;
+  applyAtomSets: (sets: AtomSet[] | undefined) => void;
   addExperience: (exp: Experience) => void;
   deleteExperience: (id: string) => void;
   cloneExperience: (id: string) => Experience | undefined;
@@ -78,6 +81,7 @@ function snapshot(s: RoomState): RoomState {
     lighting: s.lighting,
     lightIntensity: s.lightIntensity,
     params: s.params,
+    atoms: s.atoms,
     updatedAt: s.updatedAt,
   };
 }
@@ -95,6 +99,7 @@ export const useStore = create<AppState>((set, get) => ({
   lighting: 'ambient',
   lightIntensity: 82,
   params: { ...first.params },
+  atoms: {},
   updatedAt: Date.now(),
 
   // ---- app state ----
@@ -121,13 +126,22 @@ export const useStore = create<AppState>((set, get) => ({
       currentId: id,
       activeExperience: exp, // so projection/remote can render content they don't own
       activeSceneId: exp.scenes?.[0]?.id,
+      atoms: initialAtoms(exp.atoms),
       positionSec: 0,
       playing: get().live,
       params: { ...exp.params },
     });
   },
 
-  setActiveScene: (sceneId) => get().patch({ activeSceneId: sceneId }),
+  setActiveScene: (sceneId) => {
+    const exp = currentExperience(get());
+    get().patch({ activeSceneId: sceneId, atoms: resetSceneAtoms(get().atoms ?? {}, exp.atoms) });
+  },
+
+  applyAtomSets: (sets) => {
+    if (!sets?.length) return;
+    get().patch({ atoms: applySets(get().atoms ?? {}, sets) });
+  },
 
   goLive: (live) => get().patch({ live, playing: live }),
 

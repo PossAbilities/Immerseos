@@ -151,7 +151,7 @@ export function SurfaceView({
             {el.type === 'score' && <ScoreEl el={el} interactive={!editable} />}
             {el.type === 'progress' && <ProgressEl el={el} />}
             {el.type === 'lock' && (
-              <LockEl el={el} interactive={!editable} onSolved={() => el.targetSceneId && onHotspot?.(el)} />
+              <LockEl el={el} interactive={!editable} onSolved={() => (el.targetSceneId || el.setAtoms?.length) && onHotspot?.(el)} />
             )}
             {el.type === 'wipe' && <WipeEl el={el} interactive={!editable} />}
           </div>
