@@ -14,6 +14,7 @@ function isVideo(src?: string) {
 interface Props {
   content: SurfaceContent;
   surface?: string; // which surface this is (for activity touch routing)
+  bgOverride?: React.CSSProperties; // scene-wide panorama/colour background slice
   className?: string;
   editable?: boolean;
   selectedId?: string | null;
@@ -31,6 +32,7 @@ interface Props {
 export function SurfaceView({
   content,
   surface,
+  bgOverride,
   className,
   editable,
   selectedId,
@@ -69,7 +71,9 @@ export function SurfaceView({
       onPointerDown={() => editable && onSelectElement?.(null)}
     >
       {/* background */}
-      {content.backgroundSrc ? (
+      {bgOverride ? (
+        <div className="absolute inset-0" style={bgOverride} />
+      ) : content.backgroundSrc ? (
         isVideo(content.backgroundSrc) ? (
           <video src={content.backgroundSrc} autoPlay loop muted={content.backgroundMuted ?? true} playsInline className="absolute inset-0 h-full w-full object-cover" />
         ) : (

@@ -41,6 +41,18 @@ export type ElementType =
 
 export type LockKind = 'numberpad' | 'sliding' | 'descramble';
 
+/** How a scene's background is mapped onto the room's surfaces. */
+export type BackgroundType =
+  | 'per-surface' // each wall has its own media
+  | 'flat-panorama' // one wide image/video spanning all walls
+  | 'equirectangular'
+  | 'immersive-panorama'
+  | 'immersive-cube'
+  | 'youtube-equiangular'
+  | 'streetview'
+  | 'colour' // solid colour
+  | 'use-previous'; // inherit the previous scene's background
+
 /** A placeable element on a surface within a scene. Coords are 0..1 surface-local. */
 export interface SceneElement {
   id: string;
@@ -78,6 +90,10 @@ export interface Scene {
   surfaces: Record<string, SurfaceContent>; // keyed by SurfaceId
   autoAdvanceSec?: number; // if set, advance to the next scene after N seconds
   nextSceneId?: string; // explicit next scene (defaults to the following one)
+  // scene-wide background mapping (defaults to per-surface)
+  backgroundType?: BackgroundType;
+  panoramaSrc?: string; // wide image/video for panorama / 360 modes
+  panoramaColor?: string; // for the 'colour' mode
 }
 
 export type ExperienceVisibility = 'private' | 'team' | 'public';
@@ -121,6 +137,7 @@ export interface Experience {
   likes?: number;
   owner?: string; // operator id who created it
   aspectRatio?: string; // editor surface render ratio, e.g. '16:9'
+  wallOrder?: string[]; // ordered wall surface ids (for panorama slicing)
   // --- multi-scene authored content (optional) ---
   scenes?: Scene[];
 }

@@ -2,7 +2,40 @@
 // a simple single generative scene (the original model) or a list of authored
 // Scenes, each holding per-surface content (background + placeable elements).
 
+import type { CSSProperties } from 'react';
 import type { Experience, Scene, SceneElement, ElementType, SurfaceContent } from './types';
+
+const VIDEO_RE = /\.(mp4|mov|webm|ogg)(\?|$)/i;
+export const isVideoSrc = (s?: string) => !!s && VIDEO_RE.test(s);
+
+/**
+ * The CSS background for one wall under a scene's background-type. Returns
+ * undefined for per-surface mode (each wall keeps its own media) and for video
+ * panoramas (handled by rendering the video as the wall's background instead).
+ */
+export function panoramaStyle(scene: Scene, index: number, count: number): CSSProperties | undefined {
+  const t = scene.backgroundType ?? 'per-surface';
+  if (t === 'per-surface' || t === 'use-previous') return undefined;
+  if (t === 'colour') return { background: scene.panoramaColor ?? '#000000' };
+  const src = scene.panoramaSrc;
+  if (!src || isVideoSrc(src)) return undefined; // no image to slice / video handled elsewhere
+  return {
+    backgroundImage: `url(${src})`,
+    backgroundSize: `${count * 100}% 100%`,
+    backgroundPosition: count > 1 ? `${(index / (count - 1)) * 100}% 50%` : 'center',
+    backgroundRepeat: 'no-repeat',
+  };
+}
+
+/** The content to render for a wall, folding in a video panorama background. */
+export function wallContent(scene: Scene, surfaceId: string): SurfaceContent {
+  const base = scene.surfaces[surfaceId] ?? { elements: [] };
+  const t = scene.backgroundType ?? 'per-surface';
+  if (t !== 'per-surface' && t !== 'use-previous' && t !== 'colour' && isVideoSrc(scene.panoramaSrc)) {
+    return { ...base, backgroundSrc: scene.panoramaSrc };
+  }
+  return base;
+}
 
 /** The surfaces the wall editor exposes (the common immersive-room set). */
 export const EDITOR_SURFACES: { id: string; label: string }[] = [

@@ -3,7 +3,7 @@ import { Stage } from '@/components/Stage';
 import { SurfaceView } from '@/components/SurfaceView';
 import { useStore, currentExperience } from '@/store/useStore';
 import { onSurfaceTouch } from '@/lib/touchBus';
-import { getScenes } from '@/lib/sceneModel';
+import { getScenes, panoramaStyle, wallContent } from '@/lib/sceneModel';
 import type { LightingPreset } from '@/lib/types';
 
 const LIGHT_OVERLAY: Record<LightingPreset, string> = {
@@ -26,11 +26,13 @@ function mySurface(): string | null {
 }
 
 /** Renders this projection window's surface for an authored multi-scene experience. */
-function AuthoredSurface({ expScenes, activeSceneId }: { expScenes: import('@/lib/types').Scene[]; activeSceneId?: string }) {
+function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: import('@/lib/types').Scene[]; activeSceneId?: string; wallOrder?: string[] }) {
   const surface = useRef(mySurface() ?? 'centre').current;
   const setActiveScene = useStore((s) => s.setActiveScene);
   const scene = expScenes.find((s) => s.id === activeSceneId) ?? expScenes[0];
-  const content = scene.surfaces[surface] ?? { elements: [] };
+  const content = wallContent(scene, surface);
+  const order = wallOrder && wallOrder.length ? wallOrder : ['left', 'centre', 'right'];
+  const bgOverride = panoramaStyle(scene, Math.max(0, order.indexOf(surface)), order.length);
 
   // route surface touches onto hotspots in this surface (real sensor input)
   useEffect(() => {
@@ -47,6 +49,7 @@ function AuthoredSurface({ expScenes, activeSceneId }: { expScenes: import('@/li
     <SurfaceView
       content={content}
       surface={surface}
+      bgOverride={bgOverride}
       className="h-full w-full"
       onHotspot={(el) => el.targetSceneId && setActiveScene(el.targetSceneId)}
     />
@@ -116,7 +119,7 @@ export function Projection() {
       {live ? (
         <>
           {authored ? (
-            <AuthoredSurface expScenes={getScenes(exp)} activeSceneId={activeSceneId} />
+            <AuthoredSurface expScenes={getScenes(exp)} activeSceneId={activeSceneId} wallOrder={exp.wallOrder} />
           ) : (
             <Stage sceneId={exp.sceneId} params={params} playing={playing} className="h-full w-full" />
           )}
