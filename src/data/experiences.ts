@@ -1,7 +1,7 @@
 // The seed Experience Library. Built-in experiences wrap the generative scenes;
 // the Creator tool adds user-authored ones on top (persisted to localStorage).
 
-import type { Experience } from '@/lib/types';
+import type { Collection, Experience } from '@/lib/types';
 import { SCENES } from '@/engine/scenes';
 
 const DURATIONS: Record<string, number> = {
@@ -26,6 +26,9 @@ export const BUILTIN_EXPERIENCES: Experience[] = SCENES.map((s) => ({
   durationSec: DURATIONS[s.id] ?? 480,
   builtIn: true,
   createdAt: 0,
+  collectionId: 'showcase',
+  visibility: 'public',
+  canClone: true,
   params: { ...s.defaults },
   layers: [
     {
@@ -41,6 +44,14 @@ export const BUILTIN_EXPERIENCES: Experience[] = SCENES.map((s) => ({
 }));
 
 const STORAGE_KEY = 'immerseos.experiences.v1';
+const COLLECTIONS_KEY = 'immerseos.collections.v1';
+
+export const BUILTIN_COLLECTION: Collection = {
+  id: 'showcase',
+  name: 'Showcase',
+  description: 'The built-in ImmerseOS scene library.',
+  createdAt: 0,
+};
 
 export function loadUserExperiences(): Experience[] {
   try {
@@ -57,5 +68,26 @@ export function saveUserExperiences(list: Experience[]) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list.filter((e) => !e.builtIn)));
   } catch {
     /* storage may be unavailable (e.g. private mode) — non-fatal */
+  }
+}
+
+export function loadCollections(): Collection[] {
+  try {
+    const raw = localStorage.getItem(COLLECTIONS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Collection[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCollections(list: Collection[]) {
+  try {
+    localStorage.setItem(
+      COLLECTIONS_KEY,
+      JSON.stringify(list.filter((c) => c.id !== BUILTIN_COLLECTION.id)),
+    );
+  } catch {
+    /* non-fatal */
   }
 }

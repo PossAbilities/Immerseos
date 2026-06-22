@@ -19,12 +19,62 @@ export interface Layer {
   duration: number; // seconds
 }
 
+// ---------------------------------------------------------------------------
+// Authored scene model (wall editor). An experience may either be a simple
+// single generative scene (sceneId/params, the original model) OR a richer
+// multi-scene authored experience with per-surface content. Both are supported
+// so existing experiences keep working.
+// ---------------------------------------------------------------------------
+
+export type ElementType =
+  | 'image'
+  | 'text'
+  | 'hotspot'
+  | 'video'
+  | 'web'
+  | 'activity';
+
+/** A placeable element on a surface within a scene. Coords are 0..1 surface-local. */
+export interface SceneElement {
+  id: string;
+  type: ElementType;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  // type-specific payload
+  text?: string;
+  src?: string; // image/video/web url
+  color?: string;
+  fontSize?: number; // for text, relative 0..1 of surface height
+  activityId?: string; // for type 'activity'
+  // hotspot behaviour: navigate to another scene in the same experience
+  targetSceneId?: string;
+  label?: string;
+}
+
+/** What fills a surface behind the elements. */
+export interface SurfaceContent {
+  backgroundSceneId?: string; // a generative scene id
+  backgroundSrc?: string; // or an image/video url
+  elements: SceneElement[];
+}
+
+/** One scene of an authored experience — content for each surface. */
+export interface Scene {
+  id: string;
+  name: string;
+  surfaces: Record<string, SurfaceContent>; // keyed by SurfaceId
+}
+
+export type ExperienceVisibility = 'private' | 'team' | 'public';
+
 /** A saved, playable experience in the Library. */
 export interface Experience {
   id: string;
   title: string;
   category: string;
-  sceneId: string; // the primary scene rendered on the walls
+  sceneId: string; // the primary generative scene (single-scene model)
   tagline: string;
   description: string;
   accent: string;
@@ -34,6 +84,24 @@ export interface Experience {
   params: SceneParams;
   layers: Layer[];
   audioTrack?: string;
+  // --- richer metadata (authored experiences) ---
+  collectionId?: string;
+  thumbnail?: string; // data URL or path
+  screenshots?: string[];
+  sector?: string;
+  experienceType?: string;
+  visibility?: ExperienceVisibility;
+  canClone?: boolean;
+  // --- multi-scene authored content (optional) ---
+  scenes?: Scene[];
+}
+
+/** A folder/project grouping experiences (e.g. "Summer of Love"). */
+export interface Collection {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
 }
 
 /** The single source of truth shared between Control, Projection and Remote. */

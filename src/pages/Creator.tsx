@@ -88,12 +88,16 @@ export function Creator() {
   const removeLayer = (lid: string) => setLayers((ls) => ls.filter((l) => l.id !== lid));
 
   const build = (): Experience => ({
+    // preserve any metadata set elsewhere (collection, thumbnail, sharing…)
+    ...(editing ?? {}),
     id: editing?.id ?? `user-${Date.now()}`,
     title,
     category,
     sceneId,
-    tagline: `${category} · custom build`,
-    description: `A custom immersive experience authored in the ImmerseOS Creator on ${new Date().toLocaleDateString()}.`,
+    tagline: editing?.tagline ?? `${category} · custom build`,
+    description:
+      editing?.description ??
+      `A custom immersive experience authored in the ImmerseOS Creator on ${new Date().toLocaleDateString()}.`,
     accent: scene.accent,
     durationSec: duration,
     builtIn: false,

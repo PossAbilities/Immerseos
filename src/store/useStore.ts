@@ -1,8 +1,11 @@
 import { create } from 'zustand';
-import type { Experience, RoomPatch, RoomState, SceneParams } from '@/lib/types';
+import type { Collection, Experience, RoomPatch, RoomState, SceneParams } from '@/lib/types';
 import {
+  BUILTIN_COLLECTION,
   BUILTIN_EXPERIENCES,
+  loadCollections,
   loadUserExperiences,
+  saveCollections,
   saveUserExperiences,
 } from '@/data/experiences';
 import { CLIENT_ID, Sync, nextMessageId } from '@/lib/sync';
@@ -10,6 +13,7 @@ import { emitSurfaceTouch } from '@/lib/touchBus';
 
 export interface AppState extends RoomState {
   experiences: Experience[];
+  collections: Collection[];
   authed: boolean;
   operator: string;
   // remote connectivity, reported by the sync layer
@@ -25,6 +29,9 @@ export interface AppState extends RoomState {
   setParam: (key: keyof SceneParams, value: number) => void;
   addExperience: (exp: Experience) => void;
   deleteExperience: (id: string) => void;
+  cloneExperience: (id: string) => Experience | undefined;
+  addCollection: (name: string) => Collection;
+  deleteCollection: (id: string) => void;
   tick: (dt: number) => void;
 }
 
@@ -89,6 +96,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   // ---- app state ----
   experiences: [...BUILTIN_EXPERIENCES, ...loadUserExperiences()],
+  collections: [BUILTIN_COLLECTION, ...loadCollections()],
   authed: false,
   operator: '',
   remotesConnected: 0,
@@ -133,6 +141,43 @@ export const useStore = create<AppState>((set, get) => ({
       const experiences = s.experiences.filter((e) => e.id !== id || e.builtIn);
       saveUserExperiences(experiences);
       return { experiences };
+    }),
+
+  cloneExperience: (id) => {
+    const src = get().experiences.find((e) => e.id === id);
+    if (!src) return undefined;
+    const copy: Experience = {
+      ...structuredClone(src),
+      id: `user-${Date.now()}`,
+      title: `${src.title} (copy)`,
+      builtIn: false,
+      createdAt: Date.now(),
+    };
+    get().addExperience(copy);
+    return copy;
+  },
+
+  addCollection: (name) => {
+    const col: Collection = { id: `col-${Date.now()}`, name, createdAt: Date.now() };
+    set((s) => {
+      const collections = [...s.collections, col];
+      saveCollections(collections);
+      return { collections };
+    });
+    return col;
+  },
+
+  deleteCollection: (id) =>
+    set((s) => {
+      if (id === BUILTIN_COLLECTION.id) return {};
+      const collections = s.collections.filter((c) => c.id !== id);
+      // orphaned experiences fall back to "no collection"
+      const experiences = s.experiences.map((e) =>
+        e.collectionId === id ? { ...e, collectionId: undefined } : e,
+      );
+      saveCollections(collections);
+      saveUserExperiences(experiences);
+      return { collections, experiences };
     }),
 
   tick: (dt) => {
