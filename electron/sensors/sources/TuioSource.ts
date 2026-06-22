@@ -12,6 +12,7 @@ import type { SensorConfig } from '../types.js';
 export class TuioSource extends BaseSensorSource {
   private socket?: dgram.Socket;
   private prevAlive = new Set<number>();
+  private seen = new Set<number>(); // sessions we've already emitted a 'down' for
   private positions = new Map<number, { x: number; y: number }>();
   private pointsWindow: number[] = [];
   private idleTimer?: NodeJS.Timeout;
@@ -66,19 +67,27 @@ export class TuioSource extends BaseSensorSource {
     this.markActive();
 
     const now = Date.now();
-    // position updates → down (new) or move (existing)
+    // position updates → 'down' the first time we see a session, else 'move'.
+    // Keyed on `seen` (not the previous frame's alive set) so it's correct even
+    // when a sender splits set/alive across datagrams or announces liveness
+    // before the first coordinate.
     for (const [sid, pos] of sets) {
-      const phase = this.prevAlive.has(sid) ? 'move' : 'down';
+      const phase = this.seen.has(sid) ? 'move' : 'down';
+      this.seen.add(sid);
       this.positions.set(sid, pos);
       this.emit({ sensorId: this.id, sessionId: sid, x: pos.x, y: pos.y, phase, t: now });
     }
-    // removals → up, using the last known position
+    // removals → 'up', using the last known position. Only act on frames that
+    // actually carry an alive list, so set-only datagrams don't drop sessions.
     if (aliveNow) {
       for (const sid of this.prevAlive) {
         if (!aliveNow.has(sid)) {
           const pos = this.positions.get(sid) ?? { x: 0, y: 0 };
-          this.emit({ sensorId: this.id, sessionId: sid, x: pos.x, y: pos.y, phase: 'up', t: now });
+          if (this.seen.has(sid)) {
+            this.emit({ sensorId: this.id, sessionId: sid, x: pos.x, y: pos.y, phase: 'up', t: now });
+          }
           this.positions.delete(sid);
+          this.seen.delete(sid);
         }
       }
       this.prevAlive = aliveNow;

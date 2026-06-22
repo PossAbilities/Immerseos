@@ -99,7 +99,13 @@ function openProjections() {
   const assigned = profile.surfaces.filter((s) => s.enabled && s.displayId != null);
 
   if (assigned.length > 0) {
+    const usedDisplays = new Set<number>();
     for (const surface of assigned) {
+      // one physical display drives one surface — ignore duplicate assignments
+      // rather than stacking two full-screen windows on the same projector.
+      if (surface.displayId != null && usedDisplays.has(surface.displayId)) continue;
+      if (surface.displayId != null) usedDisplays.add(surface.displayId);
+
       const key = String(surface.id);
       const existing = surfaceWindows.get(key);
       if (existing) {

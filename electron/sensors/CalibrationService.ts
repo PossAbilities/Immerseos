@@ -18,6 +18,7 @@ export class CalibrationService {
   private progressTimer?: NodeJS.Timeout;
   private samples: RawTouchPoint[] = [];
   private started = 0;
+  private pending?: { surfaceId: SurfaceId; resolve: (r: CaptureResult) => void };
 
   constructor(
     private sensors: SensorManager,
@@ -25,6 +26,7 @@ export class CalibrationService {
   ) {}
 
   begin(surfaceId: SurfaceId): Promise<CaptureResult> {
+    // settle any in-flight capture as aborted so its awaited promise never hangs
     this.cancel();
     this.samples = [];
     this.started = Date.now();
@@ -40,14 +42,23 @@ export class CalibrationService {
     }, 200);
 
     return new Promise((resolve) => {
+      this.pending = { surfaceId, resolve };
       this.timer = setTimeout(() => {
+        const result = this.derive(surfaceId);
         this.stopListening();
-        resolve(this.derive(surfaceId));
+        this.pending = undefined;
+        resolve(result);
       }, WINDOW_MS);
     });
   }
 
+  /** Abort an in-flight capture, resolving its promise so callers never hang. */
   cancel() {
+    if (this.pending) {
+      const { surfaceId, resolve } = this.pending;
+      this.pending = undefined;
+      resolve({ ok: false, surfaceId, sampleCount: 0, message: 'Calibration cancelled.' });
+    }
     this.stopListening();
   }
 
@@ -87,7 +98,10 @@ export class CalibrationService {
     // 5th/95th percentile bounds reject stray blobs, then a small pad.
     const xs = dom.points.map((p) => p.x).sort((a, b) => a - b);
     const ys = dom.points.map((p) => p.y).sort((a, b) => a - b);
-    const pct = (arr: number[], q: number) => arr[Math.min(arr.length - 1, Math.floor(q * arr.length))];
+    // nearest-rank percentile: index q*(N-1), so 0.95 stays below the max and
+    // actually trims top-end stray blobs (q*N would collapse to the maximum).
+    const pct = (arr: number[], q: number) =>
+      arr[Math.max(0, Math.min(arr.length - 1, Math.round(q * (arr.length - 1))))];
     const pad = 0.03;
     const region = {
       x0: Math.max(0, pct(xs, 0.05) - pad),

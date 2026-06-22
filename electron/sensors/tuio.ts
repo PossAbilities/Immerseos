@@ -51,7 +51,7 @@ function parseMessage(buf: Buffer): OscMessage | null {
 
 /** Decode an OSC packet (message or #bundle, recursively) into flat messages. */
 export function parseOscPacket(buf: Buffer): OscMessage[] {
-  if (buf.length >= 8 && buf.toString('ascii', 0, 7) === '#bundle') {
+  if (buf.length >= 16 && buf[7] === 0 && buf.toString('ascii', 0, 7) === '#bundle') {
     const out: OscMessage[] = [];
     let off = 16; // 8-byte "#bundle\0" + 8-byte timetag
     while (off + 4 <= buf.length) {
