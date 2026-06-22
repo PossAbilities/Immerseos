@@ -133,12 +133,13 @@ export function Editor() {
   const duplicateScene = (i: number) => {
     setScenes((l) => {
       const src = structuredClone(l[i]);
-      src.id = `scene-${Date.now()}`;
+      const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      src.id = `scene-${rid()}`;
       src.name = `${src.name} copy`;
       for (const sid of Object.keys(src.surfaces)) {
         src.surfaces[sid].elements = src.surfaces[sid].elements.map((e) => ({
           ...e,
-          id: `${e.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: `${e.type}-${rid()}`,
         }));
       }
       const next = [...l];

@@ -68,7 +68,7 @@ export function LockEl({ el, interactive, onSolved }: { el: SceneElement; intera
   const code = el.code ?? '1234';
 
   const press = (k: string) => {
-    if (!interactive) return;
+    if (!interactive || state === 'ok') return; // don't accept input once solved
     if (k === 'clear') { setEntry(''); setState('idle'); return; }
     const next = (entry + k).slice(0, code.length);
     setEntry(next);
@@ -110,7 +110,13 @@ export function WipeEl({ el, interactive }: { el: SceneElement; interactive?: bo
     if (!c) return;
     const ctx = c.getContext('2d');
     if (!ctx) return;
-    const size = () => { c.width = c.clientWidth; c.height = c.clientHeight; ctx.fillStyle = el.color ?? '#111317'; ctx.fillRect(0, 0, c.width, c.height); };
+    const size = () => {
+      c.width = c.clientWidth;
+      c.height = c.clientHeight;
+      ctx.globalCompositeOperation = 'source-over'; // repaint an opaque cover, not erase
+      ctx.fillStyle = el.color ?? '#111317';
+      ctx.fillRect(0, 0, c.width, c.height);
+    };
     size();
     if (!interactive) return;
     let drawing = false;
