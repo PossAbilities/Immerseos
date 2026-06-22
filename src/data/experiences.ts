@@ -15,7 +15,7 @@ const DURATIONS: Record<string, number> = {
   'ember-calm': 1200,
 };
 
-export const BUILTIN_EXPERIENCES: Experience[] = SCENES.map((s) => ({
+export const BUILTIN_EXPERIENCES: Experience[] = SCENES.map((s, i) => ({
   id: `exp-${s.id}`,
   title: s.name,
   category: s.category,
@@ -29,6 +29,12 @@ export const BUILTIN_EXPERIENCES: Experience[] = SCENES.map((s) => ({
   collectionId: 'showcase',
   visibility: 'public',
   canClone: true,
+  contentType: s.category === 'Calm' ? 'Background' : 'Scene',
+  featured: i < 2,
+  isNew: i < 3,
+  saves: 40 + ((i * 13) % 60),
+  likes: (i * 7) % 12,
+  owner: 'immerseos',
   params: { ...s.defaults },
   layers: [
     {

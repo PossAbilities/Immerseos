@@ -4,6 +4,7 @@ import { Icon } from '@/components/Icon';
 import { Stage } from '@/components/Stage';
 import { GlassPanel, StatusPill } from '@/components/ui';
 import { ExperienceDetails, type ExperienceDetailsValues } from '@/components/ExperienceDetails';
+import { CardOverlays, SaveLikes } from '@/components/CardBadges';
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn, formatTime } from '@/lib/cn';
 import { SCENES } from '@/engine/scenes';
@@ -37,11 +38,13 @@ export function Library() {
   const deleteExperience = useStore((s) => s.deleteExperience);
   const cloneExperience = useStore((s) => s.cloneExperience);
   const addCollection = useStore((s) => s.addCollection);
+  const operator = useStore((s) => s.operator);
 
   const [collectionId, setCollectionId] = useState<string>('all');
   const [cat, setCat] = useState('All');
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [owner, setOwner] = useState<'anyone' | 'mine'>('anyone');
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [details, setDetails] = useState<DetailsState>(null);
 
@@ -51,10 +54,11 @@ export function Library() {
         (e) =>
           (collectionId === 'all' || e.collectionId === collectionId) &&
           (cat === 'All' || e.category === cat) &&
+          (owner === 'anyone' || (!e.builtIn && (!e.owner || e.owner === operator))) &&
           (e.title.toLowerCase().includes(query.toLowerCase()) ||
             e.tagline.toLowerCase().includes(query.toLowerCase())),
       ),
-    [experiences, collectionId, cat, query],
+    [experiences, collectionId, cat, query, owner, operator],
   );
 
   const deploy = (id: string) => {
@@ -76,6 +80,11 @@ export function Library() {
       params: { ...scene.defaults },
       layers: [{ id: `${scene.id}-base`, type: 'scene', refId: scene.id, label: scene.name, start: 0, duration: 480 }],
       collectionId: collectionId !== 'all' ? collectionId : undefined,
+      owner: operator,
+      contentType: 'Scene',
+      isNew: true,
+      saves: 0,
+      likes: 0,
       ...v,
     };
     addExperience(exp);
@@ -147,6 +156,14 @@ export function Library() {
               <p className="text-body-md text-on-surface-variant">{filtered.length} experiences</p>
             </div>
             <div className="flex items-center gap-base">
+              <select
+                value={owner}
+                onChange={(e) => setOwner(e.target.value as 'anyone' | 'mine')}
+                className="glass rounded-lg px-md py-sm text-label-md outline-none"
+              >
+                <option value="anyone">Anyone</option>
+                <option value="mine">My projects</option>
+              </select>
               <div className="glass flex rounded-lg p-1">
                 <button onClick={() => setView('grid')} className={cn('rounded p-1', view === 'grid' && 'bg-primary text-on-primary')}>
                   <Icon name="grid_view" size={18} />
@@ -185,7 +202,7 @@ export function Library() {
                   <div className="relative aspect-video">
                     <Thumb exp={e} className="h-full w-full" />
                     <div className="absolute inset-0 bg-gradient-to-t from-surface/90 to-transparent opacity-80" />
-                    {!e.builtIn && <span className="absolute left-sm top-sm rounded-full bg-tertiary-container/80 px-sm py-0.5 text-label-sm text-white">Yours</span>}
+                    <CardOverlays exp={e} />
                     <CardMenu
                       e={e}
                       open={menuFor === e.id}
@@ -197,7 +214,7 @@ export function Library() {
                     <p className="truncate text-label-md font-semibold">{e.title}</p>
                     <div className="mt-xs flex items-center justify-between text-label-sm text-on-surface-variant">
                       <span>{e.category}</span>
-                      <span>{formatTime(e.durationSec)}</span>
+                      <SaveLikes exp={e} />
                     </div>
                   </div>
                 </GlassPanel>

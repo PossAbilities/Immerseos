@@ -69,6 +69,15 @@ export interface Scene {
 
 export type ExperienceVisibility = 'private' | 'team' | 'public';
 
+/** Content classification shown as a card badge (mirrors the supplier's types). */
+export type ContentType =
+  | 'Scene'
+  | 'Interactive'
+  | 'Background'
+  | '360 Video'
+  | 'Video'
+  | 'Quiz';
+
 /** A saved, playable experience in the Library. */
 export interface Experience {
   id: string;
@@ -92,6 +101,12 @@ export interface Experience {
   experienceType?: string;
   visibility?: ExperienceVisibility;
   canClone?: boolean;
+  contentType?: ContentType;
+  featured?: boolean;
+  isNew?: boolean;
+  saves?: number;
+  likes?: number;
+  owner?: string; // operator id who created it
   // --- multi-scene authored content (optional) ---
   scenes?: Scene[];
 }

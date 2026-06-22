@@ -1,0 +1,47 @@
+name: Sandbox (GitHub Pages)
+
+# Publishes the web build to a live URL so you can preview ImmerseOS in a browser
+# as we develop — no installer needed. After the first successful run, enable
+# Pages at: repo Settings → Pages → Build and deployment → Source: GitHub Actions.
+#
+#   Control app : https://<owner>.github.io/<repo>/index.html
+#   Projection  : https://<owner>.github.io/<repo>/projection.html
+#   Remote      : https://<owner>.github.io/<repo>/remote.html
+#
+# (In the browser sandbox the app runs in simulated mode — no real projectors,
+#  sensors or LAN remote — but every screen and interaction is explorable.)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/immersive-room-system-2peozg]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
