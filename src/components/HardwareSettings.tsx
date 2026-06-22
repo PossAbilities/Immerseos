@@ -7,9 +7,11 @@ import type {
   AudioConfig,
   DeviceConfig,
   DeviceStatus,
+  DiscoveredDevice,
   HardwareConfig,
   LightingConfig,
   ProjectorConfig,
+  TestResult,
 } from '@/lib/hardware';
 import { cn } from '@/lib/cn';
 
@@ -68,6 +70,9 @@ function Field({
 export function HardwareSettings() {
   const [config, setConfig] = useState<HardwareConfig | null>(null);
   const [saved, setSaved] = useState(false);
+  const [tests, setTests] = useState<Record<string, TestResult | 'testing'>>({});
+  const [discovered, setDiscovered] = useState<DiscoveredDevice[] | null>(null);
+  const [scanning, setScanning] = useState<'projector' | 'lighting' | null>(null);
   const states = useDeviceStates();
   const bridge = window.immerse?.hardware;
 
@@ -106,6 +111,32 @@ export function HardwareSettings() {
     bridge.setConfig(config).then(() => setSaved(true)).catch(() => {});
   };
 
+  const test = (d: DeviceConfig) => {
+    setTests((t) => ({ ...t, [d.id]: 'testing' }));
+    bridge
+      .testDevice(d)
+      .then((r) => setTests((t) => ({ ...t, [d.id]: r })))
+      .catch((e) => setTests((t) => ({ ...t, [d.id]: { ok: false, message: String(e) } })));
+  };
+
+  const scan = (kind: 'projector' | 'lighting') => {
+    setScanning(kind);
+    setDiscovered(null);
+    bridge
+      .discover(kind)
+      .then((list) => setDiscovered(list))
+      .catch(() => setDiscovered([]))
+      .finally(() => setScanning(null));
+  };
+
+  const addDiscovered = (dev: DiscoveredDevice) => {
+    const base = newDevice(dev.kind);
+    update({
+      ...config,
+      devices: [...config.devices, { ...base, host: dev.host, port: dev.port, name: dev.name || base.name }],
+    });
+  };
+
   return (
     <div className="space-y-gutter">
       <GlassPanel className="flex items-center justify-between p-md">
@@ -131,17 +162,70 @@ export function HardwareSettings() {
         </div>
       </GlassPanel>
 
-      <div className="flex flex-wrap gap-base">
+      <div className="flex flex-wrap items-center gap-base">
         {(['projector', 'lighting', 'audio'] as const).map((k) => (
           <button
             key={k}
             onClick={() => update({ ...config, devices: [...config.devices, newDevice(k)] })}
-            className="glass flex items-center gap-base rounded-lg px-md py-sm text-label-md transition-colors hover:bg-white/10"
+            className="glass flex items-center gap-base rounded-lg px-md py-sm text-label-md capitalize transition-colors hover:bg-white/10"
           >
             <Icon name="add" size={18} /> Add {k}
           </button>
         ))}
+        <span className="mx-sm h-6 w-px bg-white/10" />
+        <button
+          onClick={() => scan('projector')}
+          disabled={!!scanning}
+          className="glass flex items-center gap-base rounded-lg px-md py-sm text-label-md transition-colors hover:bg-white/10 disabled:opacity-50"
+        >
+          <Icon name={scanning === 'projector' ? 'sync' : 'travel_explore'} size={18} className={scanning === 'projector' ? 'animate-spin' : ''} />
+          Scan projectors
+        </button>
+        <button
+          onClick={() => scan('lighting')}
+          disabled={!!scanning}
+          className="glass flex items-center gap-base rounded-lg px-md py-sm text-label-md transition-colors hover:bg-white/10 disabled:opacity-50"
+        >
+          <Icon name={scanning === 'lighting' ? 'sync' : 'travel_explore'} size={18} className={scanning === 'lighting' ? 'animate-spin' : ''} />
+          Scan Art-Net
+        </button>
       </div>
+
+      {/* discovery results */}
+      {(scanning || discovered) && (
+        <GlassPanel className="p-md">
+          <SectionLabel>Discovered on the network</SectionLabel>
+          {scanning ? (
+            <p className="mt-sm text-body-md text-on-surface-variant">
+              Scanning the local network for {scanning === 'projector' ? 'PJLink projectors' : 'Art-Net nodes'}…
+            </p>
+          ) : discovered && discovered.length > 0 ? (
+            <ul className="mt-sm space-y-base">
+              {discovered.map((dev) => (
+                <li key={`${dev.host}:${dev.port}`} className="flex items-center justify-between rounded-lg bg-surface-container-low p-sm">
+                  <div className="flex items-center gap-sm">
+                    <Icon name={dev.kind === 'projector' ? 'cast' : 'lightbulb'} className="text-primary" size={20} />
+                    <div>
+                      <p className="text-label-md">{dev.name || dev.host}</p>
+                      <p className="text-label-sm text-on-surface-variant">{dev.host}:{dev.port}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => addDiscovered(dev)}
+                    className="rounded-lg bg-primary px-md py-xs text-label-sm font-semibold text-on-primary"
+                  >
+                    Add
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-sm text-body-md text-on-surface-variant">
+              Nothing found. Check the devices are powered on and on the same network — or add one manually above.
+            </p>
+          )}
+        </GlassPanel>
+      )}
 
       {config.devices.length === 0 && (
         <p className="text-body-md text-on-surface-variant">
@@ -264,6 +348,31 @@ export function HardwareSettings() {
                   />
                 </div>
               )}
+
+              <div className="flex items-center gap-md pt-xs">
+                <button
+                  onClick={() => test(d)}
+                  className="glass flex items-center gap-base rounded-lg px-md py-xs text-label-sm transition-colors hover:bg-white/10"
+                >
+                  <Icon
+                    name={tests[d.id] === 'testing' ? 'sync' : 'wifi_tethering'}
+                    size={16}
+                    className={tests[d.id] === 'testing' ? 'animate-spin' : ''}
+                  />
+                  Test connection
+                </button>
+                {tests[d.id] && tests[d.id] !== 'testing' && (
+                  <span
+                    className={cn(
+                      'text-label-sm',
+                      (tests[d.id] as TestResult).ok ? 'text-green-400' : 'text-error',
+                    )}
+                  >
+                    {(tests[d.id] as TestResult).ok ? '✓ ' : '⚠ '}
+                    {(tests[d.id] as TestResult).message}
+                  </span>
+                )}
+              </div>
 
               {st?.status === 'error' && st.lastError && (
                 <p className="text-label-sm text-error">⚠ {st.lastError}</p>

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { remoteUrl, startServer, stopServer } from './server.js';
 import { HardwareManager } from './hardware/HardwareManager.js';
 import { loadConfig, saveConfig } from './hardware/configStore.js';
-import type { HardwareConfig, HardwareRoomState } from './hardware/types.js';
+import { discover, testDevice } from './hardware/discovery.js';
+import type { DeviceConfig, HardwareConfig, HardwareRoomState } from './hardware/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '../dist');
@@ -97,6 +98,8 @@ app.whenReady().then(() => {
     hardware.applyState(room),
   );
   ipcMain.handle('hardware:get-states', () => hardware.getDeviceStates());
+  ipcMain.handle('hardware:test-device', (_e, cfg: DeviceConfig) => testDevice(cfg));
+  ipcMain.handle('hardware:discover', (_e, kind: 'projector' | 'lighting') => discover(kind));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createControlWindow();

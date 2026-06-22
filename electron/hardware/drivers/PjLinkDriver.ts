@@ -1,6 +1,5 @@
-import net from 'node:net';
-import { createHash } from 'node:crypto';
 import { BaseDriver } from '../Driver.js';
+import { pjlinkCommand } from '../pjlink.js';
 import type { HardwareRoomState, ProjectorConfig } from '../types.js';
 
 /**
@@ -74,48 +73,12 @@ export class PjLinkDriver extends BaseDriver {
     this.setStatus('offline');
   }
 
-  /** Open a connection, perform the (optional) digest handshake, send one command. */
   private command(cmd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const socket = net.createConnection({ host: this.cfg.host, port: this.cfg.port });
-      let greeted = false;
-      let buf = '';
-      const timer = setTimeout(() => {
-        socket.destroy();
-        reject(new Error('PJLink timeout'));
-      }, 4000);
-
-      const done = (fn: () => void) => {
-        clearTimeout(timer);
-        socket.destroy();
-        fn();
-      };
-
-      socket.on('data', (chunk) => {
-        buf += chunk.toString('ascii');
-        if (!greeted && buf.includes('\r')) {
-          greeted = true;
-          const idx = buf.indexOf('\r');
-          const greeting = buf.slice(0, idx);
-          buf = buf.slice(idx + 1); // keep any bytes already pipelined after it
-          let prefix = '';
-          if (greeting.startsWith('PJLINK 1')) {
-            const seed = greeting.split(' ')[2] ?? '';
-            prefix = createHash('md5')
-              .update(seed + (this.cfg.password ?? ''))
-              .digest('hex');
-          } else if (greeting.startsWith('PJLINK ERRA')) {
-            return done(() => reject(new Error('PJLink auth error')));
-          }
-          socket.write(prefix + cmd + '\r');
-          // fall through: the response may already be in the same segment
-        }
-        if (greeted && buf.includes('\r')) {
-          const reply = buf.split('\r')[0];
-          done(() => resolve(reply));
-        }
-      });
-      socket.on('error', (e) => done(() => reject(e)));
+    return pjlinkCommand({
+      host: this.cfg.host,
+      port: this.cfg.port,
+      password: this.cfg.password,
+      command: cmd,
     });
   }
 }

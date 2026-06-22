@@ -77,6 +77,20 @@ export interface DeviceState {
   lastSeen?: number;
 }
 
+/** Result of a one-shot "Test connection" probe from the Settings UI. */
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+/** A device found on the network by discovery, ready to pre-fill a new device. */
+export interface DiscoveredDevice {
+  kind: DeviceKind;
+  host: string;
+  port: number;
+  name?: string;
+}
+
 /** The slice of room state the hardware actually cares about. */
 export interface HardwareRoomState {
   live: boolean;

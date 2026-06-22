@@ -1,9 +1,12 @@
 /// <reference types="vite/client" />
 
 import type {
+  DeviceConfig,
   DeviceState,
+  DiscoveredDevice,
   HardwareConfig,
   HardwareRoomState,
+  TestResult,
 } from './lib/hardware';
 
 interface ImmerseHardwareBridge {
@@ -11,6 +14,8 @@ interface ImmerseHardwareBridge {
   setConfig: (cfg: HardwareConfig) => Promise<void>;
   applyState: (room: HardwareRoomState) => Promise<void>;
   getDeviceStates: () => Promise<DeviceState[]>;
+  testDevice: (cfg: DeviceConfig) => Promise<TestResult>;
+  discover: (kind: 'projector' | 'lighting') => Promise<DiscoveredDevice[]>;
   onDeviceStates: (cb: (states: DeviceState[]) => void) => () => void;
 }
 

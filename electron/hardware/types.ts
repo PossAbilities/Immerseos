@@ -84,3 +84,15 @@ export interface HardwareRoomState {
   lightIntensity: number;
   tintHue: number;
 }
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface DiscoveredDevice {
+  kind: DeviceKind;
+  host: string;
+  port: number;
+  name?: string;
+}

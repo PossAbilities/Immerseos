@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  DeviceConfig,
   DeviceState,
+  DiscoveredDevice,
   HardwareConfig,
   HardwareRoomState,
+  TestResult,
 } from './hardware/types.js';
 
 // Minimal, safe bridge surfaced to the renderer as `window.immerse`.
@@ -22,6 +25,10 @@ contextBridge.exposeInMainWorld('immerse', {
       ipcRenderer.invoke('hardware:apply-state', room),
     getDeviceStates: (): Promise<DeviceState[]> =>
       ipcRenderer.invoke('hardware:get-states'),
+    testDevice: (cfg: DeviceConfig): Promise<TestResult> =>
+      ipcRenderer.invoke('hardware:test-device', cfg),
+    discover: (kind: 'projector' | 'lighting'): Promise<DiscoveredDevice[]> =>
+      ipcRenderer.invoke('hardware:discover', kind),
     onDeviceStates: (cb: (states: DeviceState[]) => void): (() => void) => {
       const handler = (_e: unknown, states: DeviceState[]) => cb(states);
       ipcRenderer.on('hardware:states', handler);
