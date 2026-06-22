@@ -5,7 +5,7 @@ import { SurfaceView } from '@/components/SurfaceView';
 import { PrimaryButton, Slider } from '@/components/ui';
 import { useStore, currentExperience } from '@/store/useStore';
 import { useRoomProfile } from '@/lib/roomBridge';
-import { EDITOR_SURFACES, getScenes, newElement, newScene, panoramaStyle, wallContent } from '@/lib/sceneModel';
+import { EDITOR_SURFACES, equirectView, getScenes, newElement, newScene, panoramaStyle, wallContent } from '@/lib/sceneModel';
 import { SCENES } from '@/engine/scenes';
 import { ACTIVITIES } from '@/activities/registry';
 import { cn } from '@/lib/cn';
@@ -156,6 +156,7 @@ export function Editor() {
   const deploy = () => { const e = build(); addExperience(e); loadExperience(e.id); goLive(true); setActiveScene(scenes[0].id); navigate(`/app/experience/${e.id}`); };
 
   const wallCount = walls.length || 1;
+  const wallIds = walls.map((w) => w.id);
   const pickSurface = (sid: string) => { setSurfaceId(sid); setSelId(null); };
 
   return (
@@ -288,14 +289,14 @@ export function Editor() {
                 <div className="flex" style={{ height: '46vh' }}>
                   {walls.map((s, i) => (
                     <WallTile key={s.id} label={s.label} active={surfaceId === s.id} aspect={aspect} onPick={() => pickSurface(s.id)}>
-                      <SurfaceView content={wallContent(scene, s.id)} surface={s.id} bgOverride={panoramaStyle(scene, i, wallCount)} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                      <SurfaceView content={wallContent(scene, s.id)} surface={s.id} bgOverride={panoramaStyle(scene, i, wallCount)} equirect={equirectView(scene, s.id, wallIds, false) ?? undefined} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                     </WallTile>
                   ))}
                   {walls.length === 0 && <div className="flex items-center justify-center px-xl text-label-sm text-on-surface-variant">No walls in this room layout — enable surfaces in Room Setup.</div>}
                 </div>
                 {floor && (
                   <WallTile label={floor.label} active={surfaceId === floor.id} onPick={() => pickSurface(floor.id)} style={{ width: '60vh', height: '12vh' }}>
-                    <SurfaceView content={scene.surfaces[floor.id] ?? { elements: [] }} surface={floor.id} editable selectedId={surfaceId === floor.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
+                    <SurfaceView content={scene.surfaces[floor.id] ?? { elements: [] }} surface={floor.id} equirect={equirectView(scene, floor.id, wallIds, true) ?? undefined} editable selectedId={surfaceId === floor.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                   </WallTile>
                 )}
               </div>
@@ -362,13 +363,13 @@ function PreviewStage({ scenes, startSceneId, walls, hasFloor, aspect, audioTrac
         <div className="flex" style={{ height: '56vh' }}>
           {walls.map((sid, i) => (
             <div key={sid} className="h-full shrink-0 overflow-hidden" style={{ aspectRatio: ratioCss(aspect) }}>
-              <SurfaceView content={wallContent(scene, sid)} surface={sid} bgOverride={panoramaStyle(scene, i, count)} onHotspot={go} className="h-full w-full" />
+              <SurfaceView content={wallContent(scene, sid)} surface={sid} bgOverride={panoramaStyle(scene, i, count)} equirect={equirectView(scene, sid, walls, false) ?? undefined} onHotspot={go} className="h-full w-full" />
             </div>
           ))}
         </div>
         {hasFloor && (
           <div className="overflow-hidden" style={{ width: '56vh', height: '14vh' }}>
-            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" onHotspot={go} className="h-full w-full" />
+            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" equirect={equirectView(scene, 'floor', walls, true) ?? undefined} onHotspot={go} className="h-full w-full" />
           </div>
         )}
       </div>
@@ -427,10 +428,10 @@ function VirtualRoom({ scene, walls, wallCount, hasFloor, onPick }: { scene: Sce
   return (
     <div className="flex h-full w-full items-center justify-center" style={{ perspective: '1200px' }}>
       <div className="relative h-[70%] w-[70%]" style={{ transformStyle: 'preserve-3d' }}>
-        {has('left') && <div className={cn(wall, 'left-0 top-[20%]')} style={{ transform: 'rotateY(38deg) translateZ(-40px)' }} onPointerDown={() => onPick('left')}><SurfaceView content={wallContent(scene, 'left')} surface="left" bgOverride={panoramaStyle(scene, idx('left'), wallCount)} className="h-full w-full" /></div>}
-        {has('centre') && <div className="absolute left-[30%] top-[20%] h-[60%] w-[40%] overflow-hidden" onPointerDown={() => onPick('centre')}><SurfaceView content={wallContent(scene, 'centre')} surface="centre" bgOverride={panoramaStyle(scene, idx('centre'), wallCount)} className="h-full w-full" /></div>}
-        {has('right') && <div className={cn(wall, 'right-0 top-[20%]')} style={{ transform: 'rotateY(-38deg) translateZ(-40px)' }} onPointerDown={() => onPick('right')}><SurfaceView content={wallContent(scene, 'right')} surface="right" bgOverride={panoramaStyle(scene, idx('right'), wallCount)} className="h-full w-full" /></div>}
-        {hasFloor && <div className="absolute bottom-0 left-[20%] h-[28%] w-[60%] overflow-hidden" style={{ transform: 'rotateX(58deg)' }} onPointerDown={() => onPick('floor')}><SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" className="h-full w-full" /></div>}
+        {has('left') && <div className={cn(wall, 'left-0 top-[20%]')} style={{ transform: 'rotateY(38deg) translateZ(-40px)' }} onPointerDown={() => onPick('left')}><SurfaceView content={wallContent(scene, 'left')} surface="left" bgOverride={panoramaStyle(scene, idx('left'), wallCount)} equirect={equirectView(scene, 'left', walls, false) ?? undefined} className="h-full w-full" /></div>}
+        {has('centre') && <div className="absolute left-[30%] top-[20%] h-[60%] w-[40%] overflow-hidden" onPointerDown={() => onPick('centre')}><SurfaceView content={wallContent(scene, 'centre')} surface="centre" bgOverride={panoramaStyle(scene, idx('centre'), wallCount)} equirect={equirectView(scene, 'centre', walls, false) ?? undefined} className="h-full w-full" /></div>}
+        {has('right') && <div className={cn(wall, 'right-0 top-[20%]')} style={{ transform: 'rotateY(-38deg) translateZ(-40px)' }} onPointerDown={() => onPick('right')}><SurfaceView content={wallContent(scene, 'right')} surface="right" bgOverride={panoramaStyle(scene, idx('right'), wallCount)} equirect={equirectView(scene, 'right', walls, false) ?? undefined} className="h-full w-full" /></div>}
+        {hasFloor && <div className="absolute bottom-0 left-[20%] h-[28%] w-[60%] overflow-hidden" style={{ transform: 'rotateX(58deg)' }} onPointerDown={() => onPick('floor')}><SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" equirect={equirectView(scene, 'floor', walls, true) ?? undefined} className="h-full w-full" /></div>}
       </div>
     </div>
   );

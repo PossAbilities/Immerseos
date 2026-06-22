@@ -2,10 +2,18 @@ import { useRef } from 'react';
 import { Stage } from './Stage';
 import { Icon } from './Icon';
 import { Activity } from './Activity';
+import { EquirectSurface } from './EquirectSurface';
 import { LockEl, ProgressEl, ScoreEl, TimerEl, WipeEl } from './SceneAtoms';
 import { getScene } from '@/engine/scenes';
 import { cn } from '@/lib/cn';
 import type { SceneElement, SurfaceContent } from '@/lib/types';
+
+export interface EquirectView {
+  src: string;
+  yawDeg: number;
+  pitchDeg: number;
+  hfovDeg: number;
+}
 
 function isVideo(src?: string) {
   return !!src && /\.(mp4|mov|webm|ogg)(\?|$)/i.test(src);
@@ -15,6 +23,7 @@ interface Props {
   content: SurfaceContent;
   surface?: string; // which surface this is (for activity touch routing)
   bgOverride?: React.CSSProperties; // scene-wide panorama/colour background slice
+  equirect?: EquirectView; // 360 reprojection for this wall
   className?: string;
   editable?: boolean;
   selectedId?: string | null;
@@ -33,6 +42,7 @@ export function SurfaceView({
   content,
   surface,
   bgOverride,
+  equirect,
   className,
   editable,
   selectedId,
@@ -71,7 +81,9 @@ export function SurfaceView({
       onPointerDown={() => editable && onSelectElement?.(null)}
     >
       {/* background */}
-      {bgOverride ? (
+      {equirect ? (
+        <EquirectSurface src={equirect.src} yawDeg={equirect.yawDeg} pitchDeg={equirect.pitchDeg} hfovDeg={equirect.hfovDeg} className="absolute inset-0 h-full w-full" />
+      ) : bgOverride ? (
         <div className="absolute inset-0" style={bgOverride} />
       ) : content.backgroundSrc ? (
         isVideo(content.backgroundSrc) ? (

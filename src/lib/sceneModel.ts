@@ -3,20 +3,30 @@
 // Scenes, each holding per-surface content (background + placeable elements).
 
 import type { CSSProperties } from 'react';
-import type { Experience, Scene, SceneElement, ElementType, SurfaceContent } from './types';
+import type { BackgroundType, Experience, Scene, SceneElement, ElementType, SurfaceContent } from './types';
 
 const VIDEO_RE = /\.(mp4|mov|webm|ogg)(\?|$)/i;
 export const isVideoSrc = (s?: string) => !!s && VIDEO_RE.test(s);
 
+// The 360 modes use true equirectangular reprojection (see equirectView); the
+// remaining non-per-surface modes (flat-panorama, colour) use a CSS background.
+const MODE_360 = new Set<BackgroundType>([
+  'equirectangular',
+  'immersive-panorama',
+  'immersive-cube',
+  'youtube-equiangular',
+  'streetview',
+]);
+
 /**
- * The CSS background for one wall under a scene's background-type. Returns
- * undefined for per-surface mode (each wall keeps its own media) and for video
- * panoramas (handled by rendering the video as the wall's background instead).
+ * The CSS background for one wall — used only for flat-panorama (a wide image
+ * sliced across the walls) and colour. Returns undefined for per-surface, the
+ * 360 modes (handled by equirectView), and video panoramas.
  */
 export function panoramaStyle(scene: Scene, index: number, count: number): CSSProperties | undefined {
   const t = scene.backgroundType ?? 'per-surface';
-  if (t === 'per-surface' || t === 'use-previous') return undefined;
   if (t === 'colour') return { background: scene.panoramaColor ?? '#000000' };
+  if (t !== 'flat-panorama') return undefined;
   const src = scene.panoramaSrc;
   if (!src || isVideoSrc(src)) return undefined; // no image to slice / video handled elsewhere
   return {
@@ -27,11 +37,26 @@ export function panoramaStyle(scene: Scene, index: number, count: number): CSSPr
   };
 }
 
-/** The content to render for a wall, folding in a video panorama background. */
+/** Equirectangular reprojection parameters for a wall, or null if not a 360 mode. */
+export function equirectView(
+  scene: Scene,
+  surfaceId: string,
+  wallOrder: string[],
+  isFloor: boolean,
+): { src: string; yawDeg: number; pitchDeg: number; hfovDeg: number } | null {
+  const t = scene.backgroundType ?? 'per-surface';
+  if (!MODE_360.has(t) || !scene.panoramaSrc) return null;
+  if (isFloor) return { src: scene.panoramaSrc, yawDeg: 0, pitchDeg: -90, hfovDeg: 55 };
+  const n = Math.max(wallOrder.length, 1);
+  const i = Math.max(0, wallOrder.indexOf(surfaceId));
+  // walls span the front arc, ~90° each, centred on the room's forward axis
+  return { src: scene.panoramaSrc, yawDeg: (i - (n - 1) / 2) * 90, pitchDeg: 0, hfovDeg: 45 };
+}
+
+/** The content to render for a wall, folding in a flat-panorama video background. */
 export function wallContent(scene: Scene, surfaceId: string): SurfaceContent {
   const base = scene.surfaces[surfaceId] ?? { elements: [] };
-  const t = scene.backgroundType ?? 'per-surface';
-  if (t !== 'per-surface' && t !== 'use-previous' && t !== 'colour' && isVideoSrc(scene.panoramaSrc)) {
+  if (scene.backgroundType === 'flat-panorama' && isVideoSrc(scene.panoramaSrc)) {
     return { ...base, backgroundSrc: scene.panoramaSrc };
   }
   return base;

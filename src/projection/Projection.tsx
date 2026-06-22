@@ -3,7 +3,7 @@ import { Stage } from '@/components/Stage';
 import { SurfaceView } from '@/components/SurfaceView';
 import { useStore, currentExperience } from '@/store/useStore';
 import { onSurfaceTouch } from '@/lib/touchBus';
-import { getScenes, panoramaStyle, wallContent } from '@/lib/sceneModel';
+import { equirectView, getScenes, panoramaStyle, wallContent } from '@/lib/sceneModel';
 import type { LightingPreset } from '@/lib/types';
 
 const LIGHT_OVERLAY: Record<LightingPreset, string> = {
@@ -33,6 +33,7 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
   const content = wallContent(scene, surface);
   const order = wallOrder && wallOrder.length ? wallOrder : ['left', 'centre', 'right'];
   const bgOverride = panoramaStyle(scene, Math.max(0, order.indexOf(surface)), order.length);
+  const equirect = equirectView(scene, surface, order, surface === 'floor') ?? undefined;
 
   // route surface touches onto hotspots in this surface (real sensor input)
   useEffect(() => {
@@ -50,6 +51,7 @@ function AuthoredSurface({ expScenes, activeSceneId, wallOrder }: { expScenes: i
       content={content}
       surface={surface}
       bgOverride={bgOverride}
+      equirect={equirect}
       className="h-full w-full"
       onHotspot={(el) => el.targetSceneId && setActiveScene(el.targetSceneId)}
     />
