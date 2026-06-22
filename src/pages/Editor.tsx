@@ -41,8 +41,12 @@ export function Editor() {
   const goLive = useStore((s) => s.goLive);
   const setActiveScene = useStore((s) => s.setActiveScene);
 
+  const operator = useStore((s) => s.operator);
   const exp = useMemo(() => experiences.find((e) => e.id === id) ?? fromStore, [experiences, id, fromStore]);
 
+  // Built-ins can't be overwritten (saveUserExperiences drops them), so editing
+  // one authors a persistent user copy under a fresh, stable id.
+  const [targetId] = useState(() => (exp.builtIn ? `user-${Date.now()}` : exp.id));
   const [scenes, setScenes] = useState<Scene[]>(() => structuredClone(getScenes(exp)));
   const [sceneIdx, setSceneIdx] = useState(0);
   const [surfaceId, setSurfaceId] = useState('centre');
@@ -68,7 +72,13 @@ export function Editor() {
     setSelId(el.id);
   };
 
-  const build = (): Experience => ({ ...exp, scenes, thumbnail: exp.thumbnail });
+  const build = (): Experience => ({
+    ...exp,
+    id: targetId,
+    builtIn: false,
+    owner: exp.owner ?? operator,
+    scenes,
+  });
   const save = () => { addExperience(build()); setSaved(true); };
   const deploy = () => {
     const e = build();

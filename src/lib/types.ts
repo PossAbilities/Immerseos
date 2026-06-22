@@ -123,6 +123,11 @@ export interface Collection {
 export interface RoomState {
   /** the experience currently loaded on the stage */
   currentId: string;
+  /**
+   * A snapshot of the active experience, broadcast so the projection / remote
+   * surfaces can render authored content that isn't in their own local library.
+   */
+  activeExperience?: Experience;
   /** within a multi-scene experience, the active scene id */
   activeSceneId?: string;
   live: boolean; // is the projection output actually showing content

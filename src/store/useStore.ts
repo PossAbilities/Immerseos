@@ -68,6 +68,7 @@ export function broadcastTouch(touch: import('@/lib/sensors').SurfaceTouch) {
 function snapshot(s: RoomState): RoomState {
   return {
     currentId: s.currentId,
+    activeExperience: s.activeExperience,
     activeSceneId: s.activeSceneId,
     live: s.live,
     playing: s.playing,
@@ -118,6 +119,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!exp) return;
     get().patch({
       currentId: id,
+      activeExperience: exp, // so projection/remote can render content they don't own
       activeSceneId: exp.scenes?.[0]?.id,
       positionSec: 0,
       playing: get().live,
@@ -198,5 +200,11 @@ export const useStore = create<AppState>((set, get) => ({
 }));
 
 export function currentExperience(s: AppState): Experience {
-  return s.experiences.find((e) => e.id === s.currentId) ?? BUILTIN_EXPERIENCES[0];
+  // Prefer the window's own (always-fresh) copy; fall back to the broadcast
+  // snapshot for surfaces that don't have this experience in their library
+  // (e.g. the projection window showing an authored experience made on control).
+  return (
+    s.experiences.find((e) => e.id === s.currentId) ??
+    (s.activeExperience?.id === s.currentId ? s.activeExperience : BUILTIN_EXPERIENCES[0])
+  );
 }
