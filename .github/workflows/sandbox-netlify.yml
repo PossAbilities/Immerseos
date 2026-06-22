@@ -1,0 +1,43 @@
+name: Sandbox (Netlify)
+
+# Publishes the web build to a live Netlify URL so ImmerseOS can be previewed in
+# a browser (control / projection / remote) as we develop — simulated mode.
+#
+# One-time setup (repo admin):
+#   1. Create a free account at https://app.netlify.com
+#   2. Add a new site (Add new site → Deploy manually → drop any folder once).
+#   3. Copy the Site ID  (Site configuration → Site information → "Site ID").
+#   4. Create a token     (User settings → Applications → New access token).
+#   5. Repo → Settings → Secrets and variables → Actions → New repository secret:
+#        NETLIFY_AUTH_TOKEN = <token>
+#        NETLIFY_SITE_ID    = <site id>
+#
+# The deploy step is continue-on-error, so the PR stays green before the secrets
+# exist; once they're added, every push publishes automatically.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/immersive-room-system-2peozg]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - name: Deploy to Netlify
+        continue-on-error: true
+        uses: nwtgck/actions-netlify@v3
+        with:
+          publish-dir: ./dist
+          production-deploy: true
+          deploy-message: 'ImmerseOS sandbox ${{ github.sha }}'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

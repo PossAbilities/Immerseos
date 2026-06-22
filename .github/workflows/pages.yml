@@ -11,10 +11,13 @@ name: Sandbox (GitHub Pages)
 # (In the browser sandbox the app runs in simulated mode — no real projectors,
 #  sensors or LAN remote — but every screen and interaction is explorable.)
 
+# Kept as an option: deploys to GitHub Pages from main (requires Pages enabled,
+# Settings → Pages → Source: GitHub Actions). The active sandbox uses Netlify
+# (see sandbox-netlify.yml). Runs only on main / manual so it never red-flags PRs.
 on:
   workflow_dispatch:
   push:
-    branches: [main, claude/immersive-room-system-2peozg]
+    branches: [main]
 
 permissions:
   contents: read
