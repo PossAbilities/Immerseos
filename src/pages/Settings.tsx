@@ -4,10 +4,12 @@ import { Stage } from '@/components/Stage';
 import { GlassPanel, PrimaryButton, SectionLabel, Slider } from '@/components/ui';
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn } from '@/lib/cn';
+import { HardwareSettings } from '@/components/HardwareSettings';
 
 const PROJECTORS = ['Alpha', 'Beta', 'Gamma', 'Delta'];
 const TABS = [
   { id: 'canvas', label: 'Canvas & Projection', icon: 'grid_view' },
+  { id: 'hardware', label: 'Hardware', icon: 'router' },
   { id: 'network', label: 'Network', icon: 'lan' },
   { id: 'audio', label: 'Audio', icon: 'graphic_eq' },
   { id: 'about', label: 'About', icon: 'info' },
@@ -149,6 +151,8 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      {tab === 'hardware' && <HardwareSettings />}
 
       {tab === 'network' && (
         <GlassPanel className="space-y-md p-md">

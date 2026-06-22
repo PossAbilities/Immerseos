@@ -7,7 +7,7 @@ import {
 } from '@/data/experiences';
 import { CLIENT_ID, Sync, nextMessageId } from '@/lib/sync';
 
-interface AppState extends RoomState {
+export interface AppState extends RoomState {
   experiences: Experience[];
   authed: boolean;
   operator: string;

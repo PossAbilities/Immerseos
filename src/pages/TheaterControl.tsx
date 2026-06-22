@@ -8,13 +8,22 @@ import { SceneParamSliders } from '@/components/SceneParamSliders';
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn, formatTime } from '@/lib/cn';
 import { LIGHTING_PRESETS } from '@/lib/presets';
+import { useHardwareDevices } from '@/lib/hardwareBridge';
 
-const HARDWARE = [
-  { name: 'Projector A-01', status: 'Online', tone: 'ok' },
-  { name: 'Projector A-02', status: 'Online', tone: 'ok' },
-  { name: 'Projector A-03', status: 'Online', tone: 'ok' },
-  { name: 'Spatial Audio Hub', status: 'Syncing', tone: 'sync' },
+// Shown when no real hardware is configured (browser / simulation mode).
+const SIM_HARDWARE = [
+  { id: 'sim-1', name: 'Projector A-01', status: 'online' as const },
+  { id: 'sim-2', name: 'Projector A-02', status: 'online' as const },
+  { id: 'sim-3', name: 'Projector A-03', status: 'online' as const },
+  { id: 'sim-4', name: 'Spatial Audio Hub', status: 'connecting' as const },
 ];
+
+const STATUS_LABEL: Record<string, string> = {
+  online: 'Online',
+  connecting: 'Syncing',
+  error: 'Error',
+  offline: 'Offline',
+};
 
 export function TheaterControl() {
   const { id } = useParams();
@@ -28,6 +37,7 @@ export function TheaterControl() {
   const lightIntensity = useStore((s) => s.lightIntensity);
   const params = useStore((s) => s.params);
   const remotes = useStore((s) => s.remotesConnected);
+  const devices = useHardwareDevices() ?? SIM_HARDWARE;
 
   const experiences = useStore((s) => s.experiences);
   const loadExperience = useStore((s) => s.loadExperience);
@@ -220,25 +230,29 @@ export function TheaterControl() {
               <SectionLabel>Stage Hardware</SectionLabel>
             </div>
             <ul className="space-y-sm">
-              {HARDWARE.map((h) => (
-                <li key={h.name} className="flex items-center justify-between">
-                  <span className="text-label-sm text-on-surface-variant">{h.name}</span>
-                  <span
-                    className={cn(
-                      'flex items-center gap-1 text-label-sm',
-                      h.tone === 'ok' ? 'text-green-400' : 'text-primary',
-                    )}
-                  >
+              {devices.map((h) => {
+                const ok = h.status === 'online';
+                const err = h.status === 'error';
+                return (
+                  <li key={h.id} className="flex items-center justify-between">
+                    <span className="text-label-sm text-on-surface-variant">{h.name}</span>
                     <span
                       className={cn(
-                        'h-1.5 w-1.5 rounded-full',
-                        h.tone === 'ok' ? 'bg-green-400' : 'animate-pulse bg-primary',
+                        'flex items-center gap-1 text-label-sm',
+                        ok ? 'text-green-400' : err ? 'text-error' : 'text-primary',
                       )}
-                    />
-                    {h.status}
-                  </span>
-                </li>
-              ))}
+                    >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          ok ? 'bg-green-400' : err ? 'bg-error' : 'animate-pulse bg-primary',
+                        )}
+                      />
+                      {STATUS_LABEL[h.status] ?? h.status}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </GlassPanel>
         </div>
