@@ -123,6 +123,8 @@ export interface Collection {
 export interface RoomState {
   /** the experience currently loaded on the stage */
   currentId: string;
+  /** within a multi-scene experience, the active scene id */
+  activeSceneId?: string;
   live: boolean; // is the projection output actually showing content
   playing: boolean;
   positionSec: number;

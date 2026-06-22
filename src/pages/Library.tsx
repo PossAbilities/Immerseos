@@ -275,6 +275,7 @@ export function Library() {
   function handleAction(action: CardAction, e: Experience) {
     setMenuFor(null);
     if (action === 'deploy') deploy(e.id);
+    else if (action === 'editor') navigate(`/app/editor/${e.id}`);
     else if (action === 'creator') navigate(`/app/creator/${e.id}`);
     else if (action === 'details') setDetails({ mode: 'edit', exp: e });
     else if (action === 'clone') cloneExperience(e.id);
@@ -284,7 +285,7 @@ export function Library() {
   }
 }
 
-type CardAction = 'deploy' | 'creator' | 'details' | 'clone' | 'delete';
+type CardAction = 'deploy' | 'creator' | 'editor' | 'details' | 'clone' | 'delete';
 
 function CollectionLink({ active, onClick, icon, label, count }: { active: boolean; onClick: () => void; icon: string; label: string; count: number }) {
   return (
@@ -314,7 +315,8 @@ function CardMenu({
 }) {
   const items: { a: CardAction; icon: string; label: string; disabled?: boolean }[] = [
     { a: 'deploy', icon: 'cast', label: 'Deploy to stage' },
-    { a: 'creator', icon: 'edit', label: 'Open in Creator' },
+    { a: 'editor', icon: 'view_in_ar', label: 'Wall Editor' },
+    { a: 'creator', icon: 'tune', label: 'Open in Creator' },
     { a: 'details', icon: 'info', label: 'Edit details' },
     { a: 'clone', icon: 'content_copy', label: 'Clone' },
     { a: 'delete', icon: 'delete', label: 'Delete', disabled: e.builtIn },

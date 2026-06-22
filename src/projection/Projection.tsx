@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stage } from '@/components/Stage';
+import { SurfaceView } from '@/components/SurfaceView';
 import { useStore, currentExperience } from '@/store/useStore';
 import { onSurfaceTouch } from '@/lib/touchBus';
+import { getScenes } from '@/lib/sceneModel';
 import type { LightingPreset } from '@/lib/types';
 
 const LIGHT_OVERLAY: Record<LightingPreset, string> = {
@@ -21,6 +23,33 @@ interface Ripple {
 function mySurface(): string | null {
   const m = location.hash.match(/surface=([^&]+)/);
   return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** Renders this projection window's surface for an authored multi-scene experience. */
+function AuthoredSurface({ expScenes, activeSceneId }: { expScenes: import('@/lib/types').Scene[]; activeSceneId?: string }) {
+  const surface = useRef(mySurface() ?? 'centre').current;
+  const setActiveScene = useStore((s) => s.setActiveScene);
+  const scene = expScenes.find((s) => s.id === activeSceneId) ?? expScenes[0];
+  const content = scene.surfaces[surface] ?? { elements: [] };
+
+  // route surface touches onto hotspots in this surface (real sensor input)
+  useEffect(() => {
+    return onSurfaceTouch((t) => {
+      if (t.surface !== surface || t.phase !== 'down') return;
+      const hit = content.elements.find(
+        (el) => el.type === 'hotspot' && el.targetSceneId && t.x >= el.x && t.x <= el.x + el.w && t.y >= el.y && t.y <= el.y + el.h,
+      );
+      if (hit?.targetSceneId) setActiveScene(hit.targetSceneId);
+    });
+  }, [surface, content, setActiveScene]);
+
+  return (
+    <SurfaceView
+      content={content}
+      className="h-full w-full"
+      onHotspot={(el) => el.targetSceneId && setActiveScene(el.targetSceneId)}
+    />
+  );
 }
 
 /** Interactive touch ripples for this surface, fed by the touch bus. */
@@ -72,22 +101,24 @@ export function Projection() {
   const live = useStore((s) => s.live);
   const lighting = useStore((s) => s.lighting);
   const lightIntensity = useStore((s) => s.lightIntensity);
+  const activeSceneId = useStore((s) => s.activeSceneId);
   const [idleHint, setIdleHint] = useState(true);
 
   useEffect(() => {
     if (live) setIdleHint(false);
   }, [live]);
 
+  const authored = exp.scenes && exp.scenes.length > 0;
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
       {live ? (
         <>
-          <Stage
-            sceneId={exp.sceneId}
-            params={params}
-            playing={playing}
-            className="h-full w-full"
-          />
+          {authored ? (
+            <AuthoredSurface expScenes={getScenes(exp)} activeSceneId={activeSceneId} />
+          ) : (
+            <Stage sceneId={exp.sceneId} params={params} playing={playing} className="h-full w-full" />
+          )}
           {/* lighting wash / blackout */}
           <div
             className="pointer-events-none absolute inset-0 transition-all duration-700"

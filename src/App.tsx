@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Library } from './pages/Library';
 import { TheaterControl } from './pages/TheaterControl';
 import { Creator } from './pages/Creator';
+import { Editor } from './pages/Editor';
 import { RemoteSync } from './pages/RemoteSync';
 import { Settings } from './pages/Settings';
 import { SetupWizard } from './setup/SetupWizard';
@@ -68,6 +69,11 @@ function CreatorRoute() {
   return <Creator key={id ?? 'new'} />;
 }
 
+function EditorRoute() {
+  const { id } = useParams();
+  return <Editor key={id} />;
+}
+
 export function App() {
   return (
     <Routes>
@@ -80,6 +86,7 @@ export function App() {
         <Route path="experience/:id" element={<TheaterControl />} />
         <Route path="creator" element={<CreatorRoute />} />
         <Route path="creator/:id" element={<CreatorRoute />} />
+        <Route path="editor/:id" element={<EditorRoute />} />
         <Route path="remote" element={<RemoteSync />} />
         <Route path="setup" element={<SetupRoute />} />
         <Route path="settings" element={<Settings />} />

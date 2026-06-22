@@ -27,6 +27,7 @@ export interface AppState extends RoomState {
   goLive: (live: boolean) => void;
   togglePlay: () => void;
   setParam: (key: keyof SceneParams, value: number) => void;
+  setActiveScene: (sceneId: string) => void;
   addExperience: (exp: Experience) => void;
   deleteExperience: (id: string) => void;
   cloneExperience: (id: string) => Experience | undefined;
@@ -67,6 +68,7 @@ export function broadcastTouch(touch: import('@/lib/sensors').SurfaceTouch) {
 function snapshot(s: RoomState): RoomState {
   return {
     currentId: s.currentId,
+    activeSceneId: s.activeSceneId,
     live: s.live,
     playing: s.playing,
     positionSec: s.positionSec,
@@ -116,11 +118,14 @@ export const useStore = create<AppState>((set, get) => ({
     if (!exp) return;
     get().patch({
       currentId: id,
+      activeSceneId: exp.scenes?.[0]?.id,
       positionSec: 0,
       playing: get().live,
       params: { ...exp.params },
     });
   },
+
+  setActiveScene: (sceneId) => get().patch({ activeSceneId: sceneId }),
 
   goLive: (live) => get().patch({ live, playing: live }),
 
