@@ -5,10 +5,12 @@ import { GlassPanel, PrimaryButton, SectionLabel, Slider } from '@/components/ui
 import { useStore, currentExperience } from '@/store/useStore';
 import { cn } from '@/lib/cn';
 import { HardwareSettings } from '@/components/HardwareSettings';
+import { SetupWizard } from '@/setup/SetupWizard';
 
 const PROJECTORS = ['Alpha', 'Beta', 'Gamma', 'Delta'];
 const TABS = [
   { id: 'canvas', label: 'Canvas & Projection', icon: 'grid_view' },
+  { id: 'room', label: 'Room Setup', icon: 'view_in_ar' },
   { id: 'hardware', label: 'Hardware', icon: 'router' },
   { id: 'network', label: 'Network', icon: 'lan' },
   { id: 'audio', label: 'Audio', icon: 'graphic_eq' },
@@ -149,6 +151,12 @@ export function Settings() {
               </select>
             </GlassPanel>
           </div>
+        </div>
+      )}
+
+      {tab === 'room' && (
+        <div className="-mx-margin -mt-md">
+          <SetupWizard />
         </div>
       )}
 

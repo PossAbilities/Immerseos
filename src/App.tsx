@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
@@ -11,6 +11,8 @@ import { TheaterControl } from './pages/TheaterControl';
 import { Creator } from './pages/Creator';
 import { RemoteSync } from './pages/RemoteSync';
 import { Settings } from './pages/Settings';
+import { SetupWizard } from './setup/SetupWizard';
+import { useRoomProfile, isElectron } from './lib/roomBridge';
 
 /** Authenticated shell: persistent sidebar + the room playback clock. */
 function AppLayout() {
@@ -32,7 +34,13 @@ function AppLayout() {
     return () => cancelAnimationFrame(raf);
   }, [tick]);
 
+  // On the desktop app, force first-run room setup before anything else.
+  const { profile } = useRoomProfile();
+  const needsSetup =
+    isElectron() && profile != null && !profile.setupComplete && location.pathname !== '/app/setup';
+
   if (!authed) return <Navigate to="/signin" replace state={{ from: location }} />;
+  if (needsSetup) return <Navigate to="/app/setup" replace />;
 
   return (
     <div className="min-h-screen">
@@ -43,6 +51,11 @@ function AppLayout() {
       </main>
     </div>
   );
+}
+
+function SetupRoute() {
+  const navigate = useNavigate();
+  return <SetupWizard onDone={() => navigate('/app/dashboard')} />;
 }
 
 /**
@@ -68,6 +81,7 @@ export function App() {
         <Route path="creator" element={<CreatorRoute />} />
         <Route path="creator/:id" element={<CreatorRoute />} />
         <Route path="remote" element={<RemoteSync />} />
+        <Route path="setup" element={<SetupRoute />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

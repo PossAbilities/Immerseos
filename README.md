@@ -26,6 +26,8 @@ walls and every phone stay in perfect lockstep.
 
 ### Highlights
 
+- 🧭 **Guided room setup** — a first-run wizard detects projectors and touch sensors, lets you confirm which surface is the left/right/centre wall and floor, then calibrates touch by asking you to *touch each wall* — just like the Immersive Interactive kit. Re-runnable any time from Settings → Room Setup.
+- 👆 **Interactive touch** — laser/LiDAR curtains and camera trackers are supported via the TUIO standard; calibrated touches are routed to the right surface and drive the projection in real time.
 - 🎛 **Total stage control** — playback, scene tuning, environment lighting, volume and hardware status from one calm glass UI.
 - 📱 **Remote in your pocket** — scan the QR code and drive the room from a phone (with haptics). No pairing, no app store.
 - 🎨 **Creator tool** — compose your own experiences from a GPU scene engine, media assets and timed triggers on a timeline, then save and deploy them.
@@ -68,6 +70,26 @@ remote.html      → Mobile remote        (src/remote/main.tsx)
 
 The whole UI also runs in a plain browser (the bridge degrades gracefully), so
 it can be developed and demoed without Electron.
+
+### Room setup & touch calibration
+
+A parallel **sensor** layer mirrors the hardware layer for the *inbound*
+direction:
+
+- **`electron/sensors/`** — a `SensorManager` owning `SensorSource`s. The first
+  source, `TuioSource`, decodes **TUIO 1.1** (OSC over UDP, port 3333) from
+  laser/LiDAR curtains and camera trackers, emitting normalized touch points.
+- **`CalibrationService`** — captures touches while you "touch the left wall",
+  finds the sensor that saw the most activity and the bounding region of those
+  points, and stores that mapping per surface.
+- **`TouchRouter`** — at runtime maps each raw touch onto the correct calibrated
+  surface with surface-local coordinates.
+- **`electron/room/`** — the `RoomProfile` (surfaces + display assignment),
+  persisted in `room.json`.
+- Routed touches flow control → all surfaces via a `'touch'` sync message and a
+  renderer **`touchBus`**, so the projection output (and, later, Creator
+  triggers) can react. In the browser, clicking the room diagram stands in for a
+  real touch.
 
 ---
 

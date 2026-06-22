@@ -6,6 +6,7 @@ import {
   saveUserExperiences,
 } from '@/data/experiences';
 import { CLIENT_ID, Sync, nextMessageId } from '@/lib/sync';
+import { emitSurfaceTouch } from '@/lib/touchBus';
 
 export interface AppState extends RoomState {
   experiences: Experience[];
@@ -44,8 +45,16 @@ export function attachSync(s: Sync) {
     } else if (msg.kind === 'presence' && typeof msg.remotes === 'number') {
       // the relay is the source of truth for how many phones are connected
       useStore.setState({ remotesConnected: msg.remotes });
+    } else if (msg.kind === 'touch' && msg.touch) {
+      // a surface touch from the control surface — fan out to the local bus
+      emitSurfaceTouch(msg.touch);
     }
   });
+}
+
+/** Broadcast a routed surface touch to the other surfaces (projection/remote). */
+export function broadcastTouch(touch: import('@/lib/sensors').SurfaceTouch) {
+  sync?.send({ kind: 'touch', id: nextMessageId(), origin: CLIENT_ID, touch });
 }
 
 function snapshot(s: RoomState): RoomState {

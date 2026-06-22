@@ -57,11 +57,13 @@ export type SurfaceRole = 'control' | 'projection' | 'remote';
 
 /** Wire message exchanged between the three surfaces. */
 export interface SyncMessage {
-  kind: 'patch' | 'hello' | 'state' | 'presence';
+  kind: 'patch' | 'hello' | 'state' | 'presence' | 'touch';
   id: string; // unique per message, used to dedupe across transports
   origin: string;
   role?: SurfaceRole;
   patch?: RoomPatch;
   state?: RoomState;
   remotes?: number; // server-authoritative count of connected phone remotes
+  // a routed surface touch, fanned out to projection/remote for interactivity
+  touch?: import('./sensors').SurfaceTouch;
 }
