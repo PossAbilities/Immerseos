@@ -40,6 +40,8 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true # auto-enable Pages (token has pages: write) — no manual toggle needed
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
