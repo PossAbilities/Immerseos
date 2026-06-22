@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Stage } from './Stage';
 import { Icon } from './Icon';
 import { Activity } from './Activity';
+import { LockEl, ProgressEl, ScoreEl, TimerEl, WipeEl } from './SceneAtoms';
 import { getScene } from '@/engine/scenes';
 import { cn } from '@/lib/cn';
 import type { SceneElement, SurfaceContent } from '@/lib/types';
@@ -70,7 +71,7 @@ export function SurfaceView({
       {/* background */}
       {content.backgroundSrc ? (
         isVideo(content.backgroundSrc) ? (
-          <video src={content.backgroundSrc} autoPlay loop muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+          <video src={content.backgroundSrc} autoPlay loop muted={content.backgroundMuted ?? true} playsInline className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <img src={content.backgroundSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
         )
@@ -130,6 +131,13 @@ export function SurfaceView({
             {el.type === 'activity' && (
               <Activity activityId={el.activityId ?? 'particles'} surface={surface} interactive={!editable} />
             )}
+            {el.type === 'timer' && <TimerEl el={el} />}
+            {el.type === 'score' && <ScoreEl el={el} interactive={!editable} />}
+            {el.type === 'progress' && <ProgressEl el={el} />}
+            {el.type === 'lock' && (
+              <LockEl el={el} interactive={!editable} onSolved={() => el.targetSceneId && onHotspot?.(el)} />
+            )}
+            {el.type === 'wipe' && <WipeEl el={el} interactive={!editable} />}
           </div>
         );
       })}

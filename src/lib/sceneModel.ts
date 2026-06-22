@@ -34,6 +34,11 @@ const ELEMENT_DEFAULTS: Record<ElementType, Partial<SceneElement>> = {
   text: { w: 0.5, h: 0.15, text: 'Double-click to edit', color: '#ffffff', fontSize: 0.12 },
   hotspot: { w: 0.16, h: 0.16, label: 'Tap', color: '#adc6ff' },
   activity: { w: 1, h: 1, activityId: 'particles' },
+  timer: { w: 0.24, h: 0.16, duration: 60, color: '#adc6ff' },
+  score: { w: 0.24, h: 0.16, label: 'Score', color: '#7ee0a0' },
+  progress: { w: 0.5, h: 0.08, duration: 30, color: '#4b8eff' },
+  lock: { w: 0.3, h: 0.42, lockKind: 'numberpad', code: '1234', color: '#c084fc', label: 'Enter code' },
+  wipe: { w: 0.5, h: 0.4, src: '', color: '#111317' },
 };
 
 export function newElement(type: ElementType): SceneElement {

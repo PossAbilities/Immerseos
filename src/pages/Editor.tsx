@@ -18,7 +18,15 @@ const TOOLS: { type: ElementType; icon: string; label: string }[] = [
   { type: 'video', icon: 'movie', label: 'Video' },
   { type: 'web', icon: 'public', label: 'Web View' },
   { type: 'activity', icon: 'sports_esports', label: 'Activity' },
+  { type: 'lock', icon: 'lock', label: 'Lock' },
+  { type: 'wipe', icon: 'auto_fix_high', label: 'Wipe' },
+  { type: 'timer', icon: 'timer', label: 'Timer' },
+  { type: 'score', icon: 'tag', label: 'Score' },
+  { type: 'progress', icon: 'linear_scale', label: 'Progress' },
 ];
+
+const ASPECTS = ['16:9', '16:10', '4:3', '1:1', '32:9'];
+const ratioCss = (r?: string) => (r ? r.replace(':', ' / ') : '16 / 9');
 
 function readFile(accept: string, onDone: (dataUrl: string) => void) {
   const input = document.createElement('input');
@@ -94,6 +102,7 @@ export function Editor() {
   const [view, setView] = useState<'flat' | '3d'>('flat');
   const [saved, setSaved] = useState(true);
   const [audioTrack, setAudioTrack] = useState<string | undefined>(exp.audioTrack);
+  const [aspect, setAspect] = useState<string>(exp.aspectRatio ?? '16:9');
 
   // keep the selected surface valid for the current room layout
   useEffect(() => {
@@ -121,6 +130,25 @@ export function Editor() {
     setSelId(el.id);
   };
 
+  const duplicateScene = (i: number) => {
+    setScenes((l) => {
+      const src = structuredClone(l[i]);
+      src.id = `scene-${Date.now()}`;
+      src.name = `${src.name} copy`;
+      for (const sid of Object.keys(src.surfaces)) {
+        src.surfaces[sid].elements = src.surfaces[sid].elements.map((e) => ({
+          ...e,
+          id: `${e.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        }));
+      }
+      const next = [...l];
+      next.splice(i + 1, 0, src);
+      return next;
+    });
+    setSaved(false);
+  };
+  const thumbSurface = walls[0]?.id ?? 'centre';
+
   const build = (): Experience => ({
     ...exp,
     id: targetId,
@@ -128,6 +156,7 @@ export function Editor() {
     owner: exp.owner ?? operator,
     scenes,
     audioTrack,
+    aspectRatio: aspect,
   });
   const save = () => { addExperience(build()); setSaved(true); };
   const deploy = () => {
@@ -150,6 +179,14 @@ export function Editor() {
           </div>
         </div>
         <div className="flex items-center gap-base">
+          <select
+            value={aspect}
+            onChange={(e) => { setAspect(e.target.value); setSaved(false); }}
+            className="glass rounded-lg px-sm py-1.5 text-label-sm outline-none"
+            title="Surface aspect ratio"
+          >
+            {ASPECTS.map((a) => <option key={a} value={a}>{a}{a === '32:9' ? ' (wide)' : ''}</option>)}
+          </select>
           <div className="glass flex rounded-lg p-1">
             <button onClick={() => setView('flat')} className={cn('rounded px-sm py-1 text-label-sm', view === 'flat' && 'bg-primary text-on-primary')}>Flat View</button>
             <button onClick={() => setView('3d')} className={cn('rounded px-sm py-1 text-label-sm', view === '3d' && 'bg-primary text-on-primary')}>Virtual Room</button>
@@ -169,13 +206,19 @@ export function Editor() {
               <SectionLabel>Scenes</SectionLabel>
               <button onClick={() => { setScenes((l) => [...l, newScene(`Scene ${l.length + 1}`, SCENES[0].id)]); setSaved(false); }} className="text-on-surface-variant hover:text-primary"><Icon name="add" size={18} /></button>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-base">
               {scenes.map((s, i) => (
-                <div key={s.id} className={cn('flex items-center gap-1 rounded-lg p-sm', i === sceneIdx ? 'bg-white/10' : 'hover:bg-white/5')}>
-                  <button onClick={() => { setSceneIdx(i); setSelId(null); }} className="flex-1 truncate text-left text-label-md">{s.name}</button>
-                  {scenes.length > 1 && (
-                    <button onClick={() => { setScenes((l) => l.filter((_, j) => j !== i)); setSceneIdx(0); setSaved(false); }} className="text-outline hover:text-error"><Icon name="close" size={14} /></button>
-                  )}
+                <div key={s.id} className={cn('overflow-hidden rounded-lg border', i === sceneIdx ? 'border-primary' : 'border-white/10')}>
+                  <button onClick={() => { setSceneIdx(i); setSelId(null); }} className="block aspect-video w-full">
+                    <SurfaceView content={s.surfaces[thumbSurface] ?? { elements: [] }} editable className="pointer-events-none h-full w-full" />
+                  </button>
+                  <div className="flex items-center gap-1 px-1 py-0.5">
+                    <span className="flex-1 truncate text-[11px]">{s.name}</span>
+                    <button onClick={() => duplicateScene(i)} className="text-outline hover:text-primary" title="Duplicate"><Icon name="content_copy" size={13} /></button>
+                    {scenes.length > 1 && (
+                      <button onClick={() => { setScenes((l) => l.filter((_, j) => j !== i)); setSceneIdx(0); setSelId(null); setSaved(false); }} className="text-outline hover:text-error" title="Delete"><Icon name="close" size={13} /></button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -183,6 +226,7 @@ export function Editor() {
               value={scene.name}
               onChange={(e) => mutate((s) => ({ ...s, name: e.target.value }))}
               className="mt-sm w-full rounded bg-surface-container-low p-1 text-label-sm outline-none"
+              placeholder="Scene name"
             />
           </div>
 
@@ -213,6 +257,31 @@ export function Editor() {
               )}
             </div>
           </div>
+
+          <div>
+            <SectionLabel>Scene Settings</SectionLabel>
+            <label className="mt-sm block text-label-sm text-on-surface-variant">Auto-advance after (seconds, 0 = off)</label>
+            <input
+              type="number"
+              min={0}
+              value={scene.autoAdvanceSec ?? 0}
+              onChange={(e) => { const v = Number(e.target.value); mutate((s) => ({ ...s, autoAdvanceSec: v > 0 ? v : undefined })); }}
+              className="mt-xs w-full rounded-lg bg-surface-container-low p-sm text-label-md outline-none focus:ring-1 focus:ring-primary"
+            />
+            {scene.autoAdvanceSec ? (
+              <>
+                <label className="mt-sm block text-label-sm text-on-surface-variant">Then go to</label>
+                <select
+                  value={scene.nextSceneId ?? ''}
+                  onChange={(e) => mutate((s) => ({ ...s, nextSceneId: e.target.value || undefined }))}
+                  className="mt-xs w-full rounded-lg bg-surface-container-low p-sm text-label-md outline-none"
+                >
+                  <option value="">Next scene</option>
+                  {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </>
+            ) : null}
+          </div>
         </GlassPanel>
 
         {/* centre: surfaces */}
@@ -224,9 +293,9 @@ export function Editor() {
                   <SurfaceView content={scene.surfaces[ceiling.id] ?? { elements: [] }} surface={ceiling.id} editable selectedId={surfaceId === ceiling.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                 </SurfacePane>
               )}
-              <div className="flex flex-1 gap-sm">
+              <div className="flex flex-1 items-stretch gap-sm overflow-x-auto custom-scrollbar">
                 {walls.map((s) => (
-                  <SurfacePane key={s.id} label={s.label} active={surfaceId === s.id} onPick={() => { setSurfaceId(s.id); setSelId(null); }} className={cn('flex-1', s.id === 'centre' && walls.length > 1 && 'flex-[1.6]')}>
+                  <SurfacePane key={s.id} label={s.label} active={surfaceId === s.id} onPick={() => { setSurfaceId(s.id); setSelId(null); }} className="h-full shrink-0" style={{ aspectRatio: ratioCss(aspect) }}>
                     <SurfaceView content={scene.surfaces[s.id] ?? { elements: [] }} surface={s.id} editable selectedId={surfaceId === s.id ? selId : null} onSelectElement={setSelId} onMoveElement={(eid, x, y) => patchElement(eid, { x, y })} className="h-full w-full" />
                   </SurfacePane>
                 ))}
@@ -256,9 +325,9 @@ export function Editor() {
   );
 }
 
-function SurfacePane({ label, active, onPick, className, children }: { label: string; active: boolean; onPick: () => void; className?: string; children: React.ReactNode }) {
+function SurfacePane({ label, active, onPick, className, style, children }: { label: string; active: boolean; onPick: () => void; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
   return (
-    <div className={cn('flex flex-col overflow-hidden rounded-lg border', active ? 'border-primary' : 'border-white/10', className)} onPointerDown={onPick}>
+    <div className={cn('flex flex-col overflow-hidden rounded-lg border', active ? 'border-primary' : 'border-white/10', className)} style={style} onPointerDown={onPick}>
       <div className="flex items-center justify-between bg-surface-container-high/60 px-sm py-1 text-[11px] uppercase tracking-widest text-on-surface-variant">
         {label}
         {active && <Icon name="edit" size={12} className="text-primary" />}
@@ -345,6 +414,48 @@ function ElementInspector({ el, scenes, onChange, onDelete }: { el: SceneElement
         </Field>
       )}
 
+      {(el.type === 'timer' || el.type === 'progress') && (
+        <Field label={`Duration (seconds)`}>
+          <input type="number" min={1} value={el.duration ?? 30} onChange={(e) => onChange({ duration: Number(e.target.value) })} className={input} />
+        </Field>
+      )}
+
+      {el.type === 'score' && (
+        <Field label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={input} /></Field>
+      )}
+
+      {el.type === 'lock' && (
+        <>
+          <Field label="Lock type">
+            <select value={el.lockKind ?? 'numberpad'} onChange={(e) => onChange({ lockKind: e.target.value as SceneElement['lockKind'] })} className={input}>
+              <option value="numberpad">Numberpad</option>
+              <option value="sliding">Sliding</option>
+              <option value="descramble">Descramble</option>
+            </select>
+          </Field>
+          <Field label="Unlock code"><input value={el.code ?? ''} onChange={(e) => onChange({ code: e.target.value })} className={input} /></Field>
+          <Field label="On unlock → go to scene">
+            <select value={el.targetSceneId ?? ''} onChange={(e) => onChange({ targetSceneId: e.target.value || undefined })} className={input}>
+              <option value="">(nothing)</option>
+              {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+        </>
+      )}
+
+      {el.type === 'wipe' && (
+        <Field label="Hidden image">
+          <div className="flex gap-base">
+            <input value={el.src ?? ''} onChange={(e) => onChange({ src: e.target.value })} placeholder="URL…" className={input} />
+            <button onClick={() => readFile('image/*', (url) => onChange({ src: url }))} className="glass rounded-lg px-sm hover:bg-white/10"><Icon name="upload" size={18} /></button>
+          </div>
+        </Field>
+      )}
+
+      {(el.type === 'timer' || el.type === 'progress' || el.type === 'score' || el.type === 'lock' || el.type === 'wipe') && (
+        <Field label="Colour"><input type="color" value={el.color ?? '#adc6ff'} onChange={(e) => onChange({ color: e.target.value })} className="h-9 w-full rounded bg-surface-container-low" /></Field>
+      )}
+
       {el.type === 'hotspot' && (
         <>
           <Field label="Label"><input value={el.label ?? ''} onChange={(e) => onChange({ label: e.target.value })} className={input} /></Field>
@@ -384,6 +495,12 @@ function BackgroundInspector({ content, label, onChange }: { content: SurfaceCon
           <button onClick={() => readFile('image/*,video/*', (url) => onChange({ backgroundSrc: url, backgroundSceneId: undefined }))} className="glass rounded-lg px-sm hover:bg-white/10"><Icon name="upload" size={18} /></button>
         </div>
       </Field>
+      {content.backgroundSrc && /\.(mp4|mov|webm|ogg)(\?|$)/i.test(content.backgroundSrc) && (
+        <label className="flex items-center gap-sm text-label-md">
+          <input type="checkbox" checked={content.backgroundMuted ?? true} onChange={(e) => onChange({ backgroundMuted: e.target.checked })} className="h-4 w-4 accent-primary" />
+          Mute background video
+        </label>
+      )}
       {(content.backgroundSrc || content.backgroundSceneId) && (
         <button onClick={() => onChange({ backgroundSrc: undefined, backgroundSceneId: undefined })} className="text-label-sm text-error hover:underline">Clear background</button>
       )}

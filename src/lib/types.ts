@@ -32,7 +32,14 @@ export type ElementType =
   | 'hotspot'
   | 'video'
   | 'web'
-  | 'activity';
+  | 'activity'
+  | 'timer'
+  | 'score'
+  | 'progress'
+  | 'lock'
+  | 'wipe';
+
+export type LockKind = 'numberpad' | 'sliding' | 'descramble';
 
 /** A placeable element on a surface within a scene. Coords are 0..1 surface-local. */
 export interface SceneElement {
@@ -48,7 +55,10 @@ export interface SceneElement {
   color?: string;
   fontSize?: number; // for text, relative 0..1 of surface height
   activityId?: string; // for type 'activity'
-  // hotspot behaviour: navigate to another scene in the same experience
+  duration?: number; // seconds — timer / progress
+  lockKind?: LockKind; // for type 'lock'
+  code?: string; // unlock code for type 'lock'
+  // hotspot / lock behaviour: navigate to another scene in the same experience
   targetSceneId?: string;
   label?: string;
 }
@@ -57,6 +67,7 @@ export interface SceneElement {
 export interface SurfaceContent {
   backgroundSceneId?: string; // a generative scene id
   backgroundSrc?: string; // or an image/video url
+  backgroundMuted?: boolean; // mute a video background (default true)
   elements: SceneElement[];
 }
 
@@ -65,6 +76,8 @@ export interface Scene {
   id: string;
   name: string;
   surfaces: Record<string, SurfaceContent>; // keyed by SurfaceId
+  autoAdvanceSec?: number; // if set, advance to the next scene after N seconds
+  nextSceneId?: string; // explicit next scene (defaults to the following one)
 }
 
 export type ExperienceVisibility = 'private' | 'team' | 'public';
@@ -107,6 +120,7 @@ export interface Experience {
   saves?: number;
   likes?: number;
   owner?: string; // operator id who created it
+  aspectRatio?: string; // editor surface render ratio, e.g. '16:9'
   // --- multi-scene authored content (optional) ---
   scenes?: Scene[];
 }

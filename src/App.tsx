@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useStore } from './store/useStore';
+import { useStore, currentExperience } from './store/useStore';
 import { Sidebar } from './components/Sidebar';
 import { Ambient } from './components/Ambient';
 import { Welcome } from './pages/Welcome';
@@ -34,6 +34,22 @@ function AppLayout() {
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [tick]);
+
+  // Sequences: auto-advance authored scenes while live (control is the authority).
+  const live = useStore((s) => s.live);
+  const activeSceneId = useStore((s) => s.activeSceneId);
+  const exp = useStore(currentExperience);
+  const setActiveScene = useStore((s) => s.setActiveScene);
+  useEffect(() => {
+    if (!live || !exp.scenes?.length) return;
+    const scenes = exp.scenes;
+    const sc = scenes.find((s) => s.id === activeSceneId) ?? scenes[0];
+    if (!sc.autoAdvanceSec) return;
+    const idx = scenes.findIndex((s) => s.id === sc.id);
+    const next = sc.nextSceneId ?? scenes[(idx + 1) % scenes.length].id;
+    const t = setTimeout(() => setActiveScene(next), sc.autoAdvanceSec * 1000);
+    return () => clearTimeout(t);
+  }, [live, activeSceneId, exp, setActiveScene]);
 
   // On the desktop app, force first-run room setup before anything else.
   const { profile } = useRoomProfile();
