@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: #0f1115;
+  }
+
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+}
+
+@layer components {
+  /* Frosted control surface used across every panel in the OS. */
+  .glass {
+    background: rgba(30, 32, 36, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Hairline highlight along the top edge of a card. */
+  .glass-edge {
+    position: relative;
+  }
+  .glass-edge::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(173, 198, 255, 0.3),
+      transparent
+    );
+  }
+
+  .bloom:hover,
+  .bloom.is-active {
+    box-shadow: 0 0 20px rgba(173, 198, 255, 0.3);
+    border-color: #adc6ff;
+  }
+
+  .btn-bloom:hover {
+    box-shadow: 0 0 24px rgba(75, 142, 255, 0.5);
+    transform: translateY(-1px);
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #4b8eff;
+    border-radius: 10px;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Range inputs themed to the OS accent. */
+input[type='range'] {
+  accent-color: #adc6ff;
+}
