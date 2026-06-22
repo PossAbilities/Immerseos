@@ -52,6 +52,6 @@
     "productName": "ImmerseOS",
     "directories": { "output": "release" },
     "files": ["dist/**/*", "dist-electron/**/*"],
-    "win": { "target": ["nsis"], "icon": "public/icon.png" }
+    "win": { "target": ["nsis"] }
   }
 }

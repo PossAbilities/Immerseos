@@ -98,6 +98,30 @@ npm run package
 
 ---
 
+## Installing on Windows (no command line)
+
+You don't need any developer tools to install ImmerseOS — GitHub builds the
+Windows installer for you:
+
+1. On GitHub, open the **Actions** tab → **Build Windows installer** → **Run
+   workflow**. (Or push a tag like `v1.0.0` to attach the installer to a
+   Release.)
+2. When it finishes (a few minutes), open the run and download the
+   **ImmerseOS-Windows-Installer** artifact — it's a `.zip` containing
+   `ImmerseOS Setup x.y.z.exe`.
+3. Copy that `.exe` to the room PC and **double-click it** to install.
+4. The first time, Windows SmartScreen may warn that the app is unsigned
+   (normal for in-house software): click **More info → Run anyway**.
+5. Launch ImmerseOS. The control window opens; if a projector / second display
+   is connected, the full-screen output appears on it automatically.
+
+To test the **phone remote**, put the PC and phone on the same Wi-Fi, open
+**Remote Sync**, and scan the QR code. To test **hardware**, use
+**Settings → Hardware → Scan / Test connection** (with nothing connected the
+room runs in safe on-screen simulation).
+
+---
+
 ## Design system
 
 Lifted from the ImmerseOS visual language: a dark "operating system" surface with
