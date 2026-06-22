@@ -116,6 +116,8 @@ export function Editor() {
   const [audioTrack, setAudioTrack] = useState<string | undefined>(exp.audioTrack);
   const [panel, setPanel] = useState<PanelId | null>('scenes');
   const [bgPanel, setBgPanel] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
 
   const scene = scenes[sceneIdx] ?? scenes[0];
@@ -168,6 +170,13 @@ export function Editor() {
           </div>
         </div>
         <div className="flex items-center gap-base">
+          <button
+            onClick={() => { setPreviewSceneId(scene.id); setPreview(true); }}
+            className="btn-bloom flex items-center gap-base rounded-lg bg-primary-container px-md py-1.5 text-label-sm font-semibold text-on-primary-container"
+            title="Preview / playtest this scene"
+          >
+            <Icon name="play_arrow" filled size={18} /> Play
+          </button>
           <select value={view} onChange={(e) => setView(e.target.value as 'flat' | '3d')} className="glass rounded-lg px-sm py-1.5 text-label-sm outline-none">
             <option value="flat">Flat View</option>
             <option value="3d">Virtual Room</option>
@@ -319,6 +328,51 @@ export function Editor() {
           </aside>
         )}
       </div>
+
+      {preview && (
+        <PreviewStage
+          scenes={scenes}
+          startSceneId={previewSceneId ?? scene.id}
+          walls={walls.map((w) => w.id)}
+          hasFloor={!!floor}
+          aspect={aspect}
+          audioTrack={audioTrack}
+          onClose={() => setPreview(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PreviewStage({ scenes, startSceneId, walls, hasFloor, aspect, audioTrack, onClose }: { scenes: Scene[]; startSceneId: string; walls: string[]; hasFloor: boolean; aspect: string; audioTrack?: string; onClose: () => void }) {
+  const [activeId, setActiveId] = useState(startSceneId);
+  const scene = scenes.find((s) => s.id === activeId) ?? scenes[0];
+  const count = walls.length || 1;
+  const go = (el: SceneElement) => el.targetSceneId && scenes.some((s) => s.id === el.targetSceneId) && setActiveId(el.targetSceneId);
+  return (
+    <div className="fixed inset-0 z-[300] flex flex-col bg-black">
+      <div className="flex items-center justify-between px-md py-sm text-on-surface">
+        <span className="flex items-center gap-sm text-label-md"><span className="h-2 w-2 animate-pulse rounded-full bg-secondary" /> Preview · {scene.name}</span>
+        <div className="flex items-center gap-md">
+          <span className="text-label-sm text-on-surface-variant">Tap walls / hotspots to interact</span>
+          <button onClick={onClose} className="glass flex items-center gap-base rounded-lg px-md py-sm text-label-md hover:bg-white/10"><Icon name="close" size={18} /> Close</button>
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-base overflow-auto p-lg">
+        <div className="flex" style={{ height: '56vh' }}>
+          {walls.map((sid, i) => (
+            <div key={sid} className="h-full shrink-0 overflow-hidden" style={{ aspectRatio: ratioCss(aspect) }}>
+              <SurfaceView content={wallContent(scene, sid)} surface={sid} bgOverride={panoramaStyle(scene, i, count)} onHotspot={go} className="h-full w-full" />
+            </div>
+          ))}
+        </div>
+        {hasFloor && (
+          <div className="overflow-hidden" style={{ width: '56vh', height: '14vh' }}>
+            <SurfaceView content={scene.surfaces.floor ?? { elements: [] }} surface="floor" onHotspot={go} className="h-full w-full" />
+          </div>
+        )}
+      </div>
+      {audioTrack && <audio src={audioTrack} autoPlay loop />}
     </div>
   );
 }
